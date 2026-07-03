@@ -44,6 +44,7 @@ def build(with_ai=True):
         for kind in ("report", "fomc"):
             dst = os.path.join(OUT, f"{kind}_{country}.json")
             if with_ai:
+                time.sleep(5)  # 연속 호출 레이트리밋 완화
                 print(f"[{country}] AI {kind} 생성...", flush=True)
                 result = (analysis.generate_report(country, payload) if kind == "report"
                           else analysis.run_fomc(country, payload))

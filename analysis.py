@@ -39,15 +39,17 @@ _NV_LOCK = threading.Lock()  # 무료 티어는 동시 호출 시 빈 응답 →
 
 
 def nv_chat(system, user, max_tokens=1400, temperature=0.4):
-    """NVIDIA NIM 호출. 모델이 '추론 토큰'만 쓰고 본문이 비는 경우를 대비해
-    토큰을 넉넉히 주고, 실패하면 1회 재시도한다. 호출은 전역적으로 한 번에 하나씩."""
+    """NVIDIA NIM 호출. 무료 티어는 연속·동시 호출 시 '빈 응답'을 돌려주는 경우가 있어
+    전역 직렬화 + 점증 대기 재시도(5→10→20→40초, 최대 5회)로 감싼다."""
     with _NV_LOCK:
         return _nv_chat_inner(system, user, max_tokens, temperature)
 
 
 def _nv_chat_inner(system, user, max_tokens, temperature):
     last_err = None
-    for attempt in range(2):
+    for attempt in range(5):
+        if attempt:
+            time.sleep(5 * 2 ** (attempt - 1))  # 5, 10, 20, 40초 대기 후 재시도
         try:
             req = urllib.request.Request(
                 NV_URL,
@@ -55,7 +57,7 @@ def _nv_chat_inner(system, user, max_tokens, temperature):
                     "model": NV_MODEL,
                     "messages": [{"role": "system", "content": system},
                                  {"role": "user", "content": user}],
-                    "max_tokens": max_tokens + attempt * 1000,
+                    "max_tokens": max_tokens + (1000 if attempt >= 2 else 0),
                     "temperature": temperature,
                 }).encode("utf-8"),
                 headers={"Authorization": f"Bearer {NV_KEY}",
@@ -67,7 +69,7 @@ def _nv_chat_inner(system, user, max_tokens, temperature):
             content = _THINK_RE.sub("", content).strip()
             if content:
                 return content
-            last_err = RuntimeError("빈 응답 (토큰 한도 초과 추정)")
+            last_err = RuntimeError("빈 응답 (레이트리밋 추정)")
         except Exception as e:
             last_err = e
     raise last_err
@@ -431,7 +433,7 @@ def _run_all(tasks):
     results = {}
     for i, (key, fn) in enumerate(tasks):
         if i:
-            time.sleep(1.5)
+            time.sleep(3)
         try:
             results[key] = fn()
         except Exception as e:
