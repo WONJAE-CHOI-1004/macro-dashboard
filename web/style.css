@@ -1,0 +1,97 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+  background: #f4f6fa; color: #1e2430;
+}
+header {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 12px 20px; background: #ffffff; border-bottom: 1px solid #e2e6ee;
+  position: sticky; top: 0; z-index: 10;
+}
+header h1 { font-size: 18px; margin-right: 8px; }
+.country-tabs, .period-tabs { display: flex; gap: 6px; }
+.tab, .period {
+  border: 1px solid #cfd6e4; background: #fff; border-radius: 8px;
+  padding: 6px 14px; font-size: 14px; cursor: pointer;
+}
+.tab.active { background: #2456d6; color: #fff; border-color: #2456d6; }
+.period.active { background: #303a4e; color: #fff; border-color: #303a4e; }
+.updated { margin-left: auto; font-size: 12px; color: #8a94a8; }
+
+.layout { display: flex; gap: 16px; padding: 16px 20px; align-items: flex-start; }
+aside {
+  width: 340px; flex-shrink: 0; background: #fff; border: 1px solid #e2e6ee;
+  border-radius: 12px; padding: 14px; max-height: calc(100vh - 90px);
+  overflow-y: auto; position: sticky; top: 74px;
+}
+.loading { font-size: 13px; color: #667; padding: 8px; }
+.section-title {
+  font-size: 13px; font-weight: bold; color: #2456d6;
+  margin: 14px 0 6px; padding-bottom: 4px; border-bottom: 2px solid #e8edf8;
+}
+.section-title:first-child { margin-top: 0; }
+label.ind {
+  display: flex; align-items: center; gap: 8px; font-size: 13px;
+  padding: 4px 6px; border-radius: 6px; cursor: pointer;
+}
+label.ind:hover { background: #f0f4fc; }
+label.ind input { accent-color: #2456d6; }
+.swatch { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; visibility: hidden; }
+label.ind.on .swatch { visibility: visible; }
+
+main { flex: 1; min-width: 0; }
+.chart-box {
+  background: #fff; border: 1px solid #e2e6ee; border-radius: 12px;
+  padding: 16px; margin-bottom: 14px; height: 62vh; min-height: 420px;
+  position: relative;
+}
+#phillipsBox { height: 48vh; min-height: 360px; }
+#phillipsBox h3 { font-size: 14px; margin-bottom: 6px; color: #303a4e; }
+.hidden { display: none; }
+.footnote { font-size: 12px; color: #8a94a8; line-height: 1.6; padding: 0 4px; }
+
+/* ---------- AI 리포트·시뮬레이션 패널 ---------- */
+.chart-box.auto { height: auto; min-height: 0; }
+.panel-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.panel-head h3 { font-size: 15px; color: #303a4e; margin-right: 6px; }
+.run-btn {
+  border: none; background: #2456d6; color: #fff; border-radius: 8px;
+  padding: 7px 14px; font-size: 13px; cursor: pointer;
+}
+.run-btn:hover { background: #1c46b4; }
+.run-btn:disabled { background: #9db1dd; cursor: wait; }
+.run-btn.ghost { background: #fff; color: #2456d6; border: 1px solid #cfd6e4; }
+.run-btn.ghost:hover { background: #f0f4fc; }
+.panel-meta { font-size: 12px; color: #8a94a8; }
+.empty { font-size: 13px; color: #667; line-height: 1.7; }
+
+.report-md { font-size: 14px; line-height: 1.8; }
+.report-md h2 { font-size: 16px; margin: 16px 0 6px; color: #2456d6; }
+.report-md h3 { font-size: 14px; margin: 12px 0 4px; }
+.report-md ul, .report-md ol { padding-left: 22px; }
+.report-md p { margin: 6px 0; }
+
+.decision-banner {
+  font-size: 16px; font-weight: bold; padding: 12px 16px; border-radius: 10px;
+  background: #eef3ff; border: 1px solid #c9d8f7; color: #1e3a8a; margin-bottom: 12px;
+}
+.dot-wrap { height: 300px; margin-bottom: 14px; }
+.bubble {
+  border-radius: 10px; padding: 10px 14px; margin: 8px 0;
+  font-size: 13px; line-height: 1.7; border-left: 4px solid #ccc; background: #f8f9fb;
+}
+.bubble .who { font-weight: bold; font-size: 13px; margin-bottom: 4px; display: block; }
+.bubble.hawk { border-left-color: #e0403c; }
+.bubble.hawk .who { color: #e0403c; }
+.bubble.neutral { border-left-color: #6b7280; }
+.bubble.neutral .who { color: #6b7280; }
+.bubble.dove { border-left-color: #2456d6; }
+.bubble.dove .who { color: #2456d6; }
+.bubble.chair { border-left-color: #12945f; background: #f2faf6; }
+.bubble.chair .who { color: #12945f; }
+.round-title { font-size: 13px; font-weight: bold; color: #303a4e; margin: 14px 0 4px; }
+
+@media (max-width: 900px) {
+  .layout { flex-direction: column; }
+  aside { width: 100%; position: static; max-height: none; }
+}

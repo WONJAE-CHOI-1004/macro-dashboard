@@ -1,0 +1,12 @@
+# API 키 파일 — 절대 GitHub에 올라가면 안 됨
+.env
+.env.local
+
+# 기타
+node_modules/
+.vercel
+dist/
+cache/
+reports/
+__pycache__/
+_site/

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>거시경제 지표 대시보드</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+</head>
+<body>
+<header>
+  <h1>📊 거시경제 지표 대시보드</h1>
+  <div class="country-tabs">
+    <button id="tab-us" class="tab active">🇺🇸 미국</button>
+    <button id="tab-kr" class="tab">🇰🇷 한국</button>
+  </div>
+  <div class="period-tabs">
+    <button class="period" data-years="5">5년</button>
+    <button class="period active" data-years="10">10년</button>
+    <button class="period" data-years="20">20년</button>
+    <button class="period" data-years="all">전체</button>
+  </div>
+  <span id="updated" class="updated"></span>
+</header>
+
+<div class="layout">
+  <aside id="sidebar">
+    <div id="loading" class="loading">데이터 불러오는 중… (첫 실행은 30초~1분 걸릴 수 있어요)</div>
+    <div id="sections"></div>
+  </aside>
+  <main>
+    <div class="chart-box">
+      <canvas id="mainChart"></canvas>
+    </div>
+    <div class="chart-box hidden" id="phillipsBox">
+      <h3 id="phillipsTitle">필립스 곡선 (산점도)</h3>
+      <canvas id="phillipsChart"></canvas>
+    </div>
+    <p class="footnote">
+      자료: FRED(세인트루이스 연준) · ECOS(한국은행) · KOSIS(통계청/기획재정부) · 6시간마다 자동 갱신 ·
+      레벨 지표(부채·유가 등)는 기간 시작점=100으로 지수화해 오른쪽 축에 표시됩니다.
+      섹터 2·3의 준칙 지표는 공식에 따라 자동 계산된 값입니다 (지표명에 마우스를 올리면 설명이 나옵니다).
+    </p>
+
+    <div class="chart-box auto" id="reportPanel">
+      <div class="panel-head">
+        <h3>📝 AI 분석 리포트</h3>
+        <button id="reportBtn" class="run-btn">리포트 생성</button>
+        <button id="reportForceBtn" class="run-btn ghost" title="데이터가 그대로여도 새로 생성 (크레딧 사용)">강제 재생성</button>
+        <span id="reportMeta" class="panel-meta"></span>
+      </div>
+      <div id="reportContent" class="report-md empty">
+        버튼을 누르면 회귀분석·시계열 분석 결과를 AI가 해석한 리포트를 생성합니다.
+        (데이터가 갱신되지 않았으면 저장된 리포트를 재사용해 크레딧을 아낍니다)
+      </div>
+    </div>
+
+    <div class="chart-box auto" id="fomcPanel">
+      <div class="panel-head">
+        <h3 id="fomcTitle">🏛️ 통화정책위원회 시뮬레이션</h3>
+        <button id="fomcBtn" class="run-btn">시뮬레이션 실행</button>
+        <button id="fomcForceBtn" class="run-btn ghost" title="데이터가 그대로여도 새로 실행 (크레딧 사용)">강제 재실행</button>
+        <span id="fomcMeta" class="panel-meta"></span>
+      </div>
+      <div id="fomcContent" class="empty">
+        매파·중립·비둘기파 위원 3명이 실제 지표를 근거로 2라운드 토론 후 표결합니다.
+        1개월·6개월·1년 시점의 점도표가 함께 생성됩니다. (실행 시에만 NVIDIA 크레딧 사용, 약 1~2분 소요)
+      </div>
+      <div id="fomcResult" class="hidden">
+        <div id="fomcDecision" class="decision-banner"></div>
+        <div class="dot-wrap"><canvas id="dotChart"></canvas></div>
+        <div id="fomcTranscript"></div>
+      </div>
+    </div>
+  </main>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
