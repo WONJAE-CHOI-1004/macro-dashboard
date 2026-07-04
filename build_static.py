@@ -12,6 +12,7 @@ import os
 import shutil
 import sys
 import time
+import urllib.request
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BASE)
@@ -19,6 +20,30 @@ import analysis  # noqa: E402
 import server    # noqa: E402
 
 OUT = os.path.join(BASE, "_site")
+
+
+def _pages_url():
+    """GitHub Actions 환경이면 현재 저장소의 Pages 주소를 유추"""
+    repo = os.environ.get("GITHUB_REPOSITORY", "")
+    if "/" in repo:
+        owner, name = repo.split("/", 1)
+        return f"https://{owner.lower()}.github.io/{name}/"
+    return None
+
+
+def _fetch_previous(kind, country, dst):
+    """AI 생성 실패 시 이미 공개된 사이트의 이전 결과를 그대로 유지"""
+    url = _pages_url()
+    if not url:
+        return False
+    try:
+        with urllib.request.urlopen(f"{url}{kind}_{country}.json", timeout=30) as r:
+            data = r.read()
+        with open(dst, "wb") as f:
+            f.write(data)
+        return True
+    except Exception:
+        return False
 
 
 def build(with_ai=True):
@@ -46,12 +71,20 @@ def build(with_ai=True):
             if with_ai:
                 time.sleep(5)  # 연속 호출 레이트리밋 완화
                 print(f"[{country}] AI {kind} 생성...", flush=True)
-                result = (analysis.generate_report(country, payload) if kind == "report"
-                          else analysis.run_fomc(country, payload))
-                result["data_updated"] = payload["updated"]
-                result["created"] = time.strftime("%Y-%m-%d %H:%M")
-                with open(dst, "w", encoding="utf-8") as f:
-                    json.dump(result, f, ensure_ascii=False)
+                try:
+                    result = (analysis.generate_report(country, payload) if kind == "report"
+                              else analysis.run_fomc(country, payload))
+                    result["data_updated"] = payload["updated"]
+                    result["created"] = time.strftime("%Y-%m-%d %H:%M")
+                    with open(dst, "w", encoding="utf-8") as f:
+                        json.dump(result, f, ensure_ascii=False)
+                except Exception as e:
+                    # AI가 실패해도 배포는 계속: 이전 공개본을 유지한다
+                    print(f"[{country}] AI {kind} 실패({e}) → 이전 공개본 유지 시도", flush=True)
+                    if _fetch_previous(kind, country, dst):
+                        print(f"[{country}] AI {kind}: 이전 공개본 재사용", flush=True)
+                    else:
+                        print(f"[{country}] AI {kind}: 이전 공개본도 없음 → 건너뜀", flush=True)
             else:
                 src = os.path.join(server.REPORT_DIR, f"{kind}_{country}.json")
                 if os.path.exists(src):

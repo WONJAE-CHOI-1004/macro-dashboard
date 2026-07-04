@@ -62,7 +62,7 @@ def _nv_chat_inner(system, user, max_tokens, temperature):
                 }).encode("utf-8"),
                 headers={"Authorization": f"Bearer {NV_KEY}",
                          "Content-Type": "application/json"})
-            with urllib.request.urlopen(req, timeout=240) as r:
+            with urllib.request.urlopen(req, timeout=360) as r:
                 d = json.loads(r.read().decode("utf-8"))
             msg = d["choices"][0]["message"]
             content = msg.get("content") or msg.get("reasoning_content") or ""
