@@ -131,6 +131,61 @@ def kosis(org_id, tbl_id, itm_id, obj_l1, prd_se="A", start="1997", end="2030"):
     return out
 
 
+def imf(indicator, country):
+    """IMF DataMapper(WEO) → [[YYYY-01-01, float], ...] — 2031년까지 전망 포함.
+    주의: User-Agent 헤더를 보내면 403이 나므로 http_json을 쓰지 않는다."""
+    url = f"https://www.imf.org/external/datamapper/api/v1/{indicator}/{country}"
+    last_err = None
+    for i in range(3):
+        if i:
+            time.sleep(8 * i)
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url), timeout=60) as r:
+                d = json.loads(r.read().decode("utf-8"))
+            vals = d["values"][indicator].get(country, {})
+            return [[f"{y}-01-01", float(v)] for y, v in sorted(vals.items())]
+        except Exception as e:
+            last_err = e
+    raise last_err
+
+
+def wb(indicator, country, start=1980):
+    """World Bank → [[YYYY-01-01, float], ...] (연간)"""
+    url = (f"https://api.worldbank.org/v2/country/{country}/indicator/{indicator}"
+           f"?format=json&per_page=200&date={start}:2035")
+    d = http_json(url)
+    rows = d[1] if len(d) > 1 and d[1] else []
+    out = [[f"{r['date']}-01-01", float(r["value"])] for r in rows if r["value"] is not None]
+    out.sort(key=lambda x: x[0])
+    return out
+
+
+def intl_series(cty):
+    """IMF·World Bank 공통 시리즈 (섹터 5). cty: 'USA' | 'KOR'"""
+    return [
+        S("imf_gdp_fc", "IMF 전망: 실질GDP 성장률", 5, imf("NGDP_RPCH", cty), dash=True,
+          desc="IMF 세계경제전망(WEO). 2031년까지의 전망치가 점선으로 이어집니다"),
+        S("imf_infl_fc", "IMF 전망: 인플레이션 (연평균)", 5, imf("PCPIPCH", cty), dash=True,
+          desc="IMF WEO 소비자물가 연평균 상승률. 미래 구간은 전망치"),
+        S("imf_unemp_fc", "IMF 전망: 실업률", 5, imf("LUR", cty), dash=True,
+          desc="IMF WEO 실업률. 미래 구간은 전망치"),
+        S("imf_govdebt", "정부부채/GDP (IMF, 전망 포함)", 5, imf("GGXWDG_NGDP", cty),
+          desc="일반정부 총부채 ÷ GDP. 2031년까지의 IMF 전망 경로 포함"),
+        S("imf_ca", "경상수지/GDP (IMF)", 5, imf("BCA_NGDPD", cty),
+          desc="경상수지 흑자(+)/적자(−) 비율. 대외 건전성 지표"),
+        S("imf_fiscal", "재정수지/GDP (IMF)", 5, imf("GGXCNL_NGDP", cty),
+          desc="일반정부 재정 흑자(+)/적자(−) 비율"),
+        S("wb_trade", "무역의존도 (수출입/GDP)", 5, wb("NE.TRD.GNFS.ZS", cty),
+          desc="World Bank. 수출+수입 ÷ GDP — 대외 충격 민감도"),
+        S("wb_buffett", "버핏지표 (시가총액/GDP)", 5, wb("CM.MKT.LCAP.GD.ZS", cty),
+          desc="World Bank. 100% 이상이면 고평가 논쟁 구간, 150% 이상은 과열 신호로 통용"),
+        S("wb_gdppc", "1인당 GDP", 5, wb("NY.GDP.PCAP.CD", cty), axis="level", unit="달러",
+          desc="World Bank, 명목 달러 기준"),
+        S("wb_old", "65세 이상 인구 비중", 5, wb("SP.POP.65UP.TO.ZS", cty),
+          desc="World Bank. 고령화 속도 — 잠재성장률과 자연이자율(r*)을 낮추는 구조 요인"),
+    ]
+
+
 def previous_series(country, ids):
     """로컬 캐시 → 공개 사이트 순으로 이전 데이터에서 특정 시리즈를 복구
     (KOSIS처럼 CI 환경에서 간헐적으로 접속이 막히는 출처의 안전장치)"""
@@ -418,6 +473,7 @@ def build_us():
         S("okun", "오쿤 법칙 예측 산출갭", 3, okun_pred,
           desc="산출갭 ≈ −2×실업률갭 (오쿤 계수 2 가정). 실제 산출갭과 겹쳐 보세요"),
     ]
+    series += intl_series("USA")
     phillips = {"x": "실업률(%)", "y": "핵심 PCE 인플레이션(%)",
                 "points": [[dict(unrate).get(m), v, m] for m, v in core if dict(unrate).get(m) is not None]}
     return {"series": series, "phillips": phillips}
@@ -560,6 +616,7 @@ def build_kr():
         S("okun", "오쿤 법칙 예측 산출갭", 3, okun_pred,
           desc="산출갭 ≈ −2×실업률갭 (오쿤 계수 2 가정). 실제 산출갭과 겹쳐 보세요"),
     ]
+    series += intl_series("KOR")
     un_map = dict(unrate)
     phillips = {"x": "실업률(%)", "y": "근원 CPI 인플레이션(%)",
                 "points": [[un_map.get(m), v, m] for m, v in core if un_map.get(m) is not None]}

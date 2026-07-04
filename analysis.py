@@ -332,6 +332,42 @@ def build_digest(country, payload):
         if cs and cs[1] >= thr:
             signals.append(f"{lab} {cs[1]:.2f}%p — 경계 수준({thr}%p) 상회, 신용시장 스트레스")
 
+    # ---------- 4c. 국제기구 데이터 (IMF WEO 전망·World Bank) ----------
+    add("\n[4c. 국제기구 데이터 — IMF 전망은 국내 기관과 다른 외부 시각의 기준점]")
+    year = int(payload["updated"][:4])
+    for sid, lab in [("imf_gdp_fc", "실질GDP 성장률"), ("imf_infl_fc", "인플레이션(연평균)"),
+                     ("imf_unemp_fc", "실업률")]:
+        dm = dict(sd.get(sid, []))
+        cur = dm.get(f"{year}-01-01")
+        nxt = dm.get(f"{year + 1}-01-01")
+        if cur is not None:
+            add(f"- IMF {lab} 전망: 올해({year}) {cur}% → 내년 {nxt}%")
+    # IMF 인플레 전망 vs 실제 괴리
+    dm = dict(sd.get("imf_infl_fc", []))
+    imf_cur = dm.get(f"{year}-01-01")
+    hd_now = last(infl_id)
+    if imf_cur is not None and hd_now and hd_now[1] - imf_cur >= 1.0:
+        signals.append(f"실제 헤드라인 인플레이션({hd_now[1]:.1f}%)이 IMF 올해 전망({imf_cur}%)을 "
+                       f"{hd_now[1] - imf_cur:.1f}%p 상회 — 외부 기관 전망도 이탈")
+    if "imf_govdebt" in sd:
+        add(f"- IMF 정부부채/GDP 경로(전망 포함): {trail('imf_govdebt', 10)}")
+    if "imf_ca" in sd:
+        add(f"- 경상수지/GDP 추이: {trail('imf_ca', 8)}")
+        ca = last("imf_ca")
+        if kr and ca and ca[1] < 0:
+            signals.append(f"경상수지 적자 전환({ca[1]}% of GDP) — 원화·대외건전성 압박 요인")
+    if "imf_fiscal" in sd:
+        add(f"- 재정수지/GDP 추이: {trail('imf_fiscal', 8)}")
+    if "wb_buffett" in sd:
+        add(f"- 버핏지표(시가총액/GDP, World Bank): {trail('wb_buffett', 8)}")
+        b = last("wb_buffett")
+        if b and b[1] >= 150:
+            signals.append(f"버핏지표 {b[1]:.0f}% — 통상 과열로 보는 150% 상회")
+    if "wb_trade" in sd:
+        add(f"- 무역의존도(수출입/GDP): {trail('wb_trade', 6)}")
+    if "wb_old" in sd:
+        add(f"- 65세 이상 인구 비중(고령화, 구조 요인): {trail('wb_old', 6)}")
+
     # ---------- 5. 통화량·명목GDP ----------
     add("\n[5. 통화량·명목GDP]")
     add(f"- M2 증가율 12개월 추이: {trail('m2_growth', 12)} (프리드먼 k% 기준선 4%)")
