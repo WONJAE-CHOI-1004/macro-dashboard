@@ -184,6 +184,12 @@ def build_digest(country, payload):
         add(f"- WTI 유가 12개월 추이(2개월 간격): {trail('wti', 6, 2)} → 전년비 {chg:+.1f}%")
         if abs(chg) >= 20:
             signals.append(f"유가 전년비 {chg:+.0f}% — {'물가 상방' if chg > 0 else '물가 하방'} 압력")
+    if "exp_inflation" in sd:
+        lab = "기대인플레이션(향후1년, 소비자조사)" if kr else "기대인플레이션(10년 BEI, 시장)"
+        add(f"- {lab} 12개월 추이: {trail('exp_inflation', 12)}")
+        ei = last("exp_inflation")
+        if ei and ei[1] >= 3.0:
+            signals.append(f"기대인플레이션 {ei[1]:.1f}% — 기대 고착화(디앵커링) 우려 구간")
 
     # ---------- 2. 고용 ----------
     add("\n[2. 고용]")
@@ -282,6 +288,49 @@ def build_digest(country, payload):
             proj = next((v for t, v in sd.get("sep_core", []) if t[:4] == year), None)
             if proj is not None and c_now and c_now[1] - proj >= 0.3:
                 signals.append(f"현재 근원 인플레이션({c_now[1]:.1f}%)이 연준 자체 {year}년 전망({proj}%)을 상회 — 전망 이탈")
+
+    # ---------- 4b. 가계부채·자산시장·신용 ----------
+    add("\n[4b. 가계부채·자산시장·신용]")
+    d_unit = "조원" if kr else "조 달러"
+    if "hh_debt" in sd:
+        add(f"- 가계부채 8분기 추이({d_unit}): {trail('hh_debt', 8)}")
+    if "hh_debt_gdp" in sd:
+        add(f"- GDP 대비 가계부채 비율 8분기 추이: {trail('hh_debt_gdp', 8)}")
+        hd = sd["hh_debt_gdp"]
+        if len(hd) >= 5 and all(hd[i][1] <= hd[i + 1][1] for i in range(len(hd) - 5, len(hd) - 1)):
+            signals.append(f"GDP 대비 가계부채 비율이 4분기 연속 상승 (현재 {hd[-1][1]}%)")
+    if "dsr" in sd:
+        add(f"- 가계 원리금 상환 부담률(DSR) 8분기 추이: {trail('dsr', 8)}")
+    if "mktcap" in sd:
+        add(f"- 주식 시가총액({d_unit}) 추이: {trail('mktcap', 8, 3 if kr else 1)}")
+    if "foreign_share" in sd:
+        add(f"- 주식 외국인 보유 비중(추정) 8분기 추이: {trail('foreign_share', 8)}")
+    si_now, si_12 = last("stock_idx"), ago("stock_idx", 12)
+    if si_now and si_12:
+        chg = (si_now[1] / si_12[1] - 1) * 100
+        add(f"- 주가지수 12개월 추이: {trail('stock_idx', 12)} (전년비 {chg:+.1f}%)")
+        if chg >= 30:
+            signals.append(f"주가지수 전년비 {chg:+.0f}% 급등 — 자산가격 과열·부(富)의 효과 점검 필요")
+        elif chg <= -20:
+            signals.append(f"주가지수 전년비 {chg:+.0f}% 급락 — 금융여건 긴축 효과")
+    if kr:
+        fx_now, fx_12 = last("usdkrw"), ago("usdkrw", 12)
+        if fx_now and fx_12:
+            chg = (fx_now[1] / fx_12[1] - 1) * 100
+            add(f"- 원/달러 환율 12개월 추이: {trail('usdkrw', 12)} (전년비 {chg:+.1f}%)")
+            if chg >= 8:
+                signals.append(f"원/달러 전년비 {chg:+.0f}% 상승 — 원화 약세, 수입물가 상방 압력")
+            elif chg <= -8:
+                signals.append(f"원/달러 전년비 {chg:+.0f}% — 원화 강세, 수입물가 하방 압력")
+    elif "dollar_idx" in sd:
+        add(f"- 달러인덱스(광의) 12개월 추이: {trail('dollar_idx', 12)}")
+    if "credit_spread" in sd:
+        lab = "신용스프레드(회사채AA-−국고채3년)" if kr else "하이일드 스프레드"
+        add(f"- {lab} 12개월 추이: {trail('credit_spread', 12)}")
+        cs = last("credit_spread")
+        thr = 1.5 if kr else 5.0
+        if cs and cs[1] >= thr:
+            signals.append(f"{lab} {cs[1]:.2f}%p — 경계 수준({thr}%p) 상회, 신용시장 스트레스")
 
     # ---------- 5. 통화량·명목GDP ----------
     add("\n[5. 통화량·명목GDP]")

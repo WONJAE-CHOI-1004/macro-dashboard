@@ -52,14 +52,17 @@ def http_json(url, timeout=40):
 
 
 # ---------------------------------------------------------------- 원자료 수집
-def fred(series_id, units=None, start="1985-01-01"):
-    """FRED 시계열 → [[YYYY-MM-DD, float], ...]"""
+def fred(series_id, units=None, start="1985-01-01", freq=None):
+    """FRED 시계열 → [[YYYY-MM-DD, float], ...] (freq='m'이면 일별을 월평균으로 집계)"""
     params = {
         "series_id": series_id, "api_key": FRED_KEY, "file_type": "json",
         "observation_start": start,
     }
     if units:
         params["units"] = units
+    if freq:
+        params["frequency"] = freq
+        params["aggregation_method"] = "avg"
     url = "https://api.stlouisfed.org/fred/series/observations?" + urllib.parse.urlencode(params)
     d = http_json(url)
     out = []
@@ -304,6 +307,19 @@ def build_us():
     gdp_n_yoy = fred("GDP", "pc1")
     base_yoy = fred("BOGMBASE", "pc1")
     m2_yoy = fred("M2SL", "pc1")
+    # --- 금융·부채 (섹터 4) ---
+    hh_debt = [[d, round(v / 1e6, 2)] for d, v in fred("CMDEBT")]        # 조$
+    hh_debt_gdp = fred("HDTGPDUSQ163N")
+    dsr = fred("TDSP")
+    mktcap_raw = fred("BOGZ1LM893064105Q")                                # 백만$
+    mktcap = [[d, round(v / 1e6, 2)] for d, v in mktcap_raw]              # 조$
+    frn = fred("BOGZ1FL263064003Q")
+    mk = dict(mktcap_raw)
+    foreign_share = [[d, round(v / mk[d] * 100, 1)] for d, v in frn if mk.get(d)]
+    sp500 = fred("SP500", freq="m")
+    dollar_idx = fred("DTWEXBGS", freq="m")
+    t10yie = fred("T10YIE", freq="m")
+    hy_spread = fred("BAMLH0A0HYM2", freq="m")
     # SEP (연준 전망, 연간)
     sep = {
         "sep_ffr": ("SEP 전망: 연방기금금리 (점도표 중간값)", fred("FEDTARMD", start="2015-01-01")),
@@ -350,6 +366,24 @@ def build_us():
     base_m = [dict(base_yoy).get(m) for m in months]
     series += mccallum_ngdp_friedman(months, ngdp_m, base_m, m2_yoy, 5.0, 4.0)
     series += [
+        S("exp_inflation", "기대인플레이션 (10년 BEI)", 4, t10yie,
+          desc="10년 국채와 물가연동국채의 금리차 = 시장이 보는 향후 10년 평균 기대 인플레이션"),
+        S("hh_debt", "가계부채 총액", 4, hh_debt, axis="level", unit="조 달러",
+          desc="가계·비영리단체 부채 잔액 (연준 자금순환표, 분기)"),
+        S("hh_debt_gdp", "GDP 대비 가계부채 비율", 4, hh_debt_gdp,
+          desc="BIS 기준 가계부채/GDP. 금리 인상의 가계 충격을 가늠하는 지표"),
+        S("dsr", "가계 원리금 상환 부담률 (DSR)", 4, dsr,
+          desc="가처분소득 대비 원리금 상환액 비중. 금리가 가계를 얼마나 조이는지 표시"),
+        S("mktcap", "주식 시가총액 (전체)", 4, mktcap, axis="level", unit="조 달러",
+          desc="미국 전체 상장주식 시가총액 (연준 자금순환표, 분기)"),
+        S("foreign_share", "외국인 보유 비중 (추정)", 4, foreign_share,
+          desc="해외 부문이 보유한 미국 주식 ÷ 전체 시가총액 (자금순환표 기준 추정치)"),
+        S("stock_idx", "S&P 500 지수", 4, sp500, axis="level", unit="",
+          desc="월평균. FRED 제공 범위 제한으로 최근 10년만 표시됩니다"),
+        S("dollar_idx", "달러인덱스 (광의)", 4, dollar_idx, axis="level", unit="",
+          desc="주요 교역상대국 통화 대비 달러 가치 (2006.1=100). 오르면 달러 강세"),
+        S("credit_spread", "하이일드 스프레드", 4, hy_spread,
+          desc="투기등급 회사채와 국채의 금리차. 5%를 넘으면 금융시장 스트레스 신호"),
         S("output_gap", "산출갭", 3, gap_q, desc="(실질GDP−잠재GDP)/잠재GDP. CBO 잠재GDP 기준"),
         S("nairu", "자연실업률 (NAIRU)", 3, nrou, desc="CBO 추정 비순환적 실업률"),
         S("unemp_gap", "실업률 갭", 3, unemp_gap, desc="실업률 − NAIRU. 마이너스면 과열 노동시장"),
@@ -383,6 +417,15 @@ def build_kr():
     employed = ecos("901Y027", "M", "199906", end_m, "I61BA/I28A")  # 취업자 수(천 명, 원계열)
     debt = kosis("184", "DT_102006_001", "T001", "A01")        # 국가채무 (조원, 연간)
     debt_ratio = kosis("184", "DT_102006_001", "T001", "A02")  # GDP 대비 국가채무 (%)
+    # --- 금융·부채 (섹터 4) ---
+    hh_debt_raw = ecos("151Y001", "Q", "2002Q4", end_q, "1000000")   # 가계신용 (십억원)
+    kospi = ecos("901Y014", "M", "199501", end_m, "1070000")
+    mktcap_kospi = ecos("901Y014", "M", "199501", end_m, "1040000")  # 천원
+    mktcap_kosdaq = ecos("901Y014", "M", "200101", end_m, "2040000")
+    usdkrw = ecos("731Y004", "M", "199001", end_m, "0000001/0000100")  # 원/달러 (월평균)
+    expinf = ecos("511Y003", "M", "200807", end_m, "FMB")            # 향후1년 기대인플레이션
+    corp3 = ecos("721Y001", "M", "199505", end_m, "7020000")         # 회사채(3년, AA-)
+    iip_equity = ecos("311Y001", "Q", "2002Q4", end_q, "2020100")    # 외국인 보유 지분증권 (백만$)
 
     cpi = yoy(cpi_idx, 12)
     core = yoy(core_idx, 12)
@@ -394,6 +437,25 @@ def build_kr():
     # 취업자 증감(전년동월대비, 만 명)
     emp_chg = [[employed[i][0], round((employed[i][1] - employed[i - 12][1]) / 10, 1)]
                for i in range(12, len(employed))]
+    # 가계부채 (조원) + GDP 대비 비율(가계신용 ÷ 최근 4분기 명목GDP 합)
+    hh_debt = [[d, round(v / 1000, 1)] for d, v in hh_debt_raw]
+    ngdp4 = {ngdp[i][0]: sum(x[1] for x in ngdp[i - 3:i + 1]) for i in range(3, len(ngdp))}
+    hh_debt_gdp = [[d, round(v / ngdp4[d] * 100, 1)] for d, v in hh_debt_raw if ngdp4.get(d)]
+    # 시가총액 (천원 → 조원)
+    mktcap = [[d, round(v / 1e9, 0)] for d, v in mktcap_kospi]
+    # 신용스프레드 = 회사채(3년, AA-) − 국고채(3년)
+    k3 = dict(ktb3)
+    credit_spread = [[d, round(v - k3[d], 2)] for d, v in corp3 if d in k3]
+    # 외국인 보유 비중(추정) = IIP 지분증권 부채잔액(백만$)×환율 ÷ (KOSPI+KOSDAQ 시가총액)
+    fx = dict(usdkrw)
+    kosdaq_map = dict(mktcap_kosdaq)
+    mk_all = {d: v + kosdaq_map[d] for d, v in mktcap_kospi if d in kosdaq_map}  # 천원
+    foreign_share = []
+    for d, v in iip_equity:
+        yy, mm = int(d[:4]), int(d[5:7])
+        md = f"{yy}-{mm + 2:02d}-01"  # 분기 마지막 달 기준
+        if fx.get(md) and mk_all.get(md):
+            foreign_share.append([d, round(v * 1e6 * fx[md] / (mk_all[md] * 1000) * 100, 1)])
 
     # 산출갭: 실질GDP 로그에 HP필터(λ=1600) 적용
     logs = [math.log(v) * 100 for _, v in rgdp]
@@ -441,6 +503,22 @@ def build_kr():
     base_m = [dict(base_yoy).get(m) for m in months]
     series += mccallum_ngdp_friedman(months, ngdp_m, base_m, m2_yoy, 4.5, 4.0)
     series += [
+        S("exp_inflation", "기대인플레이션 (향후 1년)", 4, expinf,
+          desc="한국은행 소비자동향조사: 일반인이 예상하는 향후 1년 물가상승률"),
+        S("hh_debt", "가계부채 (가계신용)", 4, hh_debt, axis="level", unit="조원",
+          desc="가계대출+판매신용 잔액 (한국은행, 분기)"),
+        S("hh_debt_gdp", "GDP 대비 가계부채 비율", 4, hh_debt_gdp,
+          desc="가계신용 ÷ 최근 4분기 명목GDP 합 (자체 계산)"),
+        S("mktcap", "KOSPI 시가총액", 4, mktcap, axis="level", unit="조원",
+          desc="유가증권시장 상장주식 시가총액 (월말)"),
+        S("foreign_share", "외국인 보유 비중 (추정)", 4, foreign_share,
+          desc="국제투자대조표의 외국인 보유 지분증권 잔액 ÷ (KOSPI+KOSDAQ 시가총액). 환율 환산 추정치"),
+        S("stock_idx", "KOSPI 지수", 4, kospi, axis="level", unit="",
+          desc="코스피 월말 종가 (1980.1.4=100)"),
+        S("usdkrw", "원/달러 환율", 4, usdkrw, axis="level", unit="원",
+          desc="매매기준율 월평균. 오르면 원화 약세"),
+        S("credit_spread", "신용스프레드 (회사채−국고채)", 4, credit_spread,
+          desc="회사채(3년, AA-) − 국고채(3년). 벌어지면 기업 자금조달 스트레스 신호"),
         S("output_gap", "산출갭 (HP필터 추정)", 3, gap_q,
           desc="한국은 공식 잠재GDP가 없어 HP필터(λ=1600)로 추정한 값입니다"),
         S("nairu", "자연실업률 근사 (HP필터)", 3, nairu,

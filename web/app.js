@@ -5,6 +5,7 @@ const SECTIONS = {
   1: "1. 핵심 거시지표 (SEP 추적)",
   2: "2. 통화정책 준칙",
   3: "3. 산출갭·보조 이론 지표",
+  4: "4. 금융·부채",
 };
 const PALETTE = [
   "#2456d6", "#e0403c", "#12945f", "#e8871a", "#8b4bd6", "#0f9bb5",
@@ -72,7 +73,7 @@ function buildSidebar(payload) {
   const root = document.getElementById("sections");
   root.innerHTML = "";
   const ordered = payload.series.map((s, i) => ({ ...s, _idx: i }));
-  for (const sec of [1, 2, 3]) {
+  for (const sec of [1, 2, 3, 4]) {
     const h = document.createElement("div");
     h.className = "section-title";
     h.textContent = SECTIONS[sec];
