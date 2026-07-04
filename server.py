@@ -131,6 +131,25 @@ def kosis(org_id, tbl_id, itm_id, obj_l1, prd_se="A", start="1997", end="2030"):
     return out
 
 
+def previous_series(country, ids):
+    """로컬 캐시 → 공개 사이트 순으로 이전 데이터에서 특정 시리즈를 복구
+    (KOSIS처럼 CI 환경에서 간헐적으로 접속이 막히는 출처의 안전장치)"""
+    payload = None
+    try:
+        with open(os.path.join(CACHE_DIR, f"{country}.json"), encoding="utf-8") as f:
+            payload = json.load(f)
+    except Exception:
+        repo = os.environ.get("GITHUB_REPOSITORY", "")
+        if "/" in repo:
+            owner, name = repo.split("/", 1)
+            try:
+                payload = http_json(f"https://{owner.lower()}.github.io/{name}/data_{country}.json")
+            except Exception:
+                payload = None
+    by_id = {s["id"]: s["data"] for s in (payload or {}).get("series", [])}
+    return [by_id.get(sid, []) for sid in ids]
+
+
 # ---------------------------------------------------------------- 시계열 유틸
 def yoy(series, periods):
     """전년동기대비 % (periods = 12(월) 또는 4(분기))"""
@@ -424,8 +443,13 @@ def build_kr():
     indprod = ecos("901Y033", "M", "200001", end_m, "A00/2")   # 전산업생산지수(계절조정)
     housing = ecos("901Y062", "M", "198601", end_m, "P63A")    # 주택매매가격지수(KB)
     employed = ecos("901Y027", "M", "199906", end_m, "I61BA/I28A")  # 취업자 수(천 명, 원계열)
-    debt = kosis("184", "DT_102006_001", "T001", "A01")        # 국가채무 (조원, 연간)
-    debt_ratio = kosis("184", "DT_102006_001", "T001", "A02")  # GDP 대비 국가채무 (%)
+    try:
+        debt = kosis("184", "DT_102006_001", "T001", "A01")        # 국가채무 (조원, 연간)
+        debt_ratio = kosis("184", "DT_102006_001", "T001", "A02")  # GDP 대비 국가채무 (%)
+    except Exception as e:
+        # KOSIS는 CI 환경에서 간헐적으로 접속 차단 → 이전 데이터 유지 (연간 통계라 무해)
+        print(f"KOSIS 실패({e}) → 이전 국가채무 데이터 재사용", flush=True)
+        debt, debt_ratio = previous_series("kr", ["debt", "debt_ratio"])
     # --- 금융·부채 (섹터 4) ---
     hh_debt_raw = ecos("151Y001", "Q", "2002Q4", end_q, "1000000")   # 가계신용 (십억원)
     kospi = ecos("901Y014", "M", "199501", end_m, "1070000")
