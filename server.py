@@ -45,10 +45,19 @@ ECOS_KEY = ENV.get("ECOS_API_KEY") or os.environ.get("ECOS_API_KEY", "")
 KOSIS_KEY = ENV.get("KOSIS_API_KEY") or os.environ.get("KOSIS_API_KEY", "")
 
 
-def http_json(url, timeout=40):
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return json.loads(r.read().decode("utf-8"))
+def http_json(url, timeout=60, tries=3):
+    """JSON GET (일시적 네트워크 오류·응답 지연에 대비해 최대 3회 재시도)"""
+    last_err = None
+    for i in range(tries):
+        if i:
+            time.sleep(8 * i)  # 8초, 16초 대기 후 재시도
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return json.loads(r.read().decode("utf-8"))
+        except Exception as e:
+            last_err = e
+    raise last_err
 
 
 # ---------------------------------------------------------------- 원자료 수집
