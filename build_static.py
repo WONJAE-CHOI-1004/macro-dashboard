@@ -60,7 +60,7 @@ def build(with_ai=True):
     with open(idx_path, "w", encoding="utf-8") as f:
         f.write(html)
 
-    for country in ("us", "kr"):
+    for country in ("us", "kr", "jp", "ez"):
         print(f"[{country}] 데이터 수집...", flush=True)
         payload = server.get_payload(country, refresh=True)
         with open(os.path.join(OUT, f"data_{country}.json"), "w", encoding="utf-8") as f:

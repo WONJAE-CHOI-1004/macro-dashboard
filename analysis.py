@@ -128,9 +128,12 @@ def build_digest(country, payload):
     sd = {s["id"]: s["data"] for s in payload["series"]}
     name = {s["id"]: s["name"] for s in payload["series"]}
     kr = country == "kr"
-    core_id = "core_cpi" if kr else "core_pce"
-    infl_id = "cpi" if kr else "head_pce"
-    long_id, short_id = ("ktb10", "ktb3") if kr else ("gs10", "gs2")
+    core_id = {"us": "core_pce", "kr": "core_cpi", "jp": "infl", "ez": "core_cpi"}[country]
+    infl_id = {"us": "head_pce", "kr": "cpi", "jp": "infl", "ez": "cpi"}[country]
+    long_id, short_id = {"us": ("gs10", "gs2"), "kr": ("ktb10", "ktb3"),
+                         "jp": ("gb10", None), "ez": ("gb10", None)}[country]
+    core_label = "인플레이션(GDP디플레이터, 분기)" if country == "jp" else "근원 인플레이션"
+    per = "12개 분기" if country == "jp" else "12개월"
 
     def last(sid):
         d = sd.get(sid)
@@ -167,12 +170,13 @@ def build_digest(country, payload):
 
     # ---------- 1. 물가 ----------
     add("[1. 물가]")
-    add(f"- 근원 인플레이션({name[core_id]}) 12개월 추이: {trail(core_id, 12)}{pct_str(core_id)}")
-    add(f"- 헤드라인 인플레이션 12개월 추이: {trail(infl_id, 12)}")
-    if not kr:
+    add(f"- {core_label}({name[core_id]}) {per} 추이: {trail(core_id, 12)}{pct_str(core_id)}")
+    if infl_id != core_id:
+        add(f"- 헤드라인 인플레이션 {per} 추이: {trail(infl_id, 12)}")
+    if country == "us":
         add(f"- CPI 12개월 추이: {trail('cpi', 12)}")
     c_now, c_6m, c_12m = last(core_id), ago(core_id, 6), ago(core_id, 12)
-    if c_now and c_6m and c_12m:
+    if c_now and c_6m and c_12m and country != "jp":
         add(f"- 근원 모멘텀: 6개월 변화 {c_now[1]-c_6m[1]:+.2f}%p, 12개월 변화 {c_now[1]-c_12m[1]:+.2f}%p (목표 2%)")
         if c_now[1] > 2.5:
             signals.append(f"근원 인플레이션 {c_now[1]:.1f}%로 목표(2%) 상회, 6개월 모멘텀 {c_now[1]-c_6m[1]:+.1f}%p")
@@ -193,7 +197,10 @@ def build_digest(country, payload):
 
     # ---------- 2. 고용 ----------
     add("\n[2. 고용]")
-    add(f"- 실업률 12개월 추이: {trail('unrate', 12)}{pct_str('unrate')}")
+    if country == "ez":
+        add(f"- 실업률 연간 추이(IMF, 전망 포함): {trail('unrate', 8)}")
+    else:
+        add(f"- 실업률 12개월 추이: {trail('unrate', 12)}{pct_str('unrate')}")
     if last("nairu"):
         add(f"- 자연실업률(NAIRU) 추정: {_fmt(last('nairu')[1])}%")
     add(f"- 실업률 갭(실업률−NAIRU) 12개월 추이: {trail('unemp_gap', 12)}")
@@ -244,9 +251,11 @@ def build_digest(country, payload):
     # ---------- 4. 금리·금융·재정 ----------
     add("\n[4. 금리·금융·재정]")
     add(f"- 정책금리 12개월 경로: {trail('policy_rate', 12)}{pct_str('policy_rate')}")
-    add(f"- {name[long_id]} 12개월 추이: {trail(long_id, 12)}")
-    add(f"- {name[short_id]} 12개월 추이: {trail(short_id, 12)}")
-    lv, sv = last(long_id), last(short_id)
+    if long_id in sd:
+        add(f"- {name[long_id]} 12개월 추이: {trail(long_id, 12)}")
+    if short_id and short_id in sd:
+        add(f"- {name[short_id]} 12개월 추이: {trail(short_id, 12)}")
+    lv, sv = last(long_id), last(short_id) if short_id else None
     if lv and sv:
         spread = round(lv[1] - sv[1], 2)
         lv12, sv12 = ago(long_id, 12), ago(short_id, 12)
@@ -313,16 +322,19 @@ def build_digest(country, payload):
             signals.append(f"주가지수 전년비 {chg:+.0f}% 급등 — 자산가격 과열·부(富)의 효과 점검 필요")
         elif chg <= -20:
             signals.append(f"주가지수 전년비 {chg:+.0f}% 급락 — 금융여건 긴축 효과")
-    if kr:
-        fx_now, fx_12 = last("usdkrw"), ago("usdkrw", 12)
+    fx_id = "usdkrw" if "usdkrw" in sd else ("fx_rate" if "fx_rate" in sd else None)
+    if fx_id:
+        fx_now, fx_12 = last(fx_id), ago(fx_id, 12)
         if fx_now and fx_12:
             chg = (fx_now[1] / fx_12[1] - 1) * 100
-            add(f"- 원/달러 환율 12개월 추이: {trail('usdkrw', 12)} (전년비 {chg:+.1f}%)")
-            if chg >= 8:
-                signals.append(f"원/달러 전년비 {chg:+.0f}% 상승 — 원화 약세, 수입물가 상방 압력")
-            elif chg <= -8:
-                signals.append(f"원/달러 전년비 {chg:+.0f}% — 원화 강세, 수입물가 하방 압력")
-    elif "dollar_idx" in sd:
+            add(f"- {name[fx_id]} 12개월 추이: {trail(fx_id, 12)} (전년비 {chg:+.1f}%)")
+            # 원/달러·엔/달러는 상승 = 자국통화 약세 (달러/유로는 반대라 신호 생략)
+            if country in ("kr", "jp"):
+                if chg >= 8:
+                    signals.append(f"{name[fx_id]} 전년비 {chg:+.0f}% 상승 — 자국통화 약세, 수입물가 상방 압력")
+                elif chg <= -8:
+                    signals.append(f"{name[fx_id]} 전년비 {chg:+.0f}% — 자국통화 강세, 수입물가 하방 압력")
+    if "dollar_idx" in sd:
         add(f"- 달러인덱스(광의) 12개월 추이: {trail('dollar_idx', 12)}")
     if "credit_spread" in sd:
         lab = "신용스프레드(회사채AA-−국고채3년)" if kr else "하이일드 스프레드"
@@ -370,8 +382,10 @@ def build_digest(country, payload):
 
     # ---------- 5. 통화량·명목GDP ----------
     add("\n[5. 통화량·명목GDP]")
-    add(f"- M2 증가율 12개월 추이: {trail('m2_growth', 12)} (프리드먼 k% 기준선 4%)")
-    add(f"- 본원통화 증가율 12개월 추이: {trail('base_growth', 12)}")
+    if "m2_growth" in sd:
+        add(f"- M2 증가율 12개월 추이: {trail('m2_growth', 12)} (프리드먼 k% 기준선 4%)")
+    if "base_growth" in sd:
+        add(f"- 본원통화 증가율 12개월 추이: {trail('base_growth', 12)}")
     mc, bg = last("mccallum"), last("base_growth")
     if mc and bg:
         add(f"- 맥컬럼 준칙: 필요 본원통화 증가율 {_fmt(mc[1])}% vs 실제 {_fmt(bg[1])}% (괴리 {bg[1]-mc[1]:+.1f}%p)")
@@ -443,8 +457,9 @@ def build_digest(country, payload):
 
     meta = {
         "current_rate": cur_rate,
-        "institution": "한국은행 금융통화위원회" if kr else "미국 연방공개시장위원회(FOMC)",
-        "country_name": "한국" if kr else "미국",
+        "institution": {"kr": "한국은행 금융통화위원회", "us": "미국 연방공개시장위원회(FOMC)",
+                        "jp": "일본은행 금융정책결정회의", "ez": "유럽중앙은행(ECB) 정책이사회"}[country],
+        "country_name": {"kr": "한국", "us": "미국", "jp": "일본", "ez": "유로존"}[country],
         "unit_step": 0.25,
     }
     return "\n".join(L), meta

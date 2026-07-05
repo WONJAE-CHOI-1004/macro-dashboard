@@ -15,15 +15,25 @@ const PALETTE = [
   "#9333ea", "#65a30d", "#c2410c", "#1d4ed8", "#a21caf", "#475569",
 ];
 
+const COUNTRIES = ["us", "kr", "jp", "ez"];
+const INSTITUTION = {
+  us: "🏛️ 연준 FOMC 시뮬레이션",
+  kr: "🏛️ 한국은행 금통위 시뮬레이션",
+  jp: "🏛️ 일본은행 금정위 시뮬레이션",
+  ez: "🏛️ ECB 정책이사회 시뮬레이션",
+};
 const state = {
   country: "us",
   years: 10,               // 5 | 10 | 20 | "all"
-  selected: { us: null, kr: null },   // Set of ids (국가별 기억)
+  selected: { us: null, kr: null, jp: null, ez: null },   // Set of ids (국가별 기억)
   cache: {},               // country -> payload
+  fomcData: {},            // country -> 시뮬레이션 결과 (전망 비교 패널용)
 };
 const DEFAULT_SEL = {
   us: ["core_pce", "policy_rate", "taylor"],
   kr: ["core_cpi", "policy_rate", "taylor"],
+  jp: ["infl", "policy_rate", "taylor"],
+  ez: ["core_cpi", "policy_rate", "taylor"],
 };
 
 let mainChart = null;
@@ -82,7 +92,7 @@ function buildSidebar(payload) {
     for (const s of ordered.filter((x) => x.section === sec)) {
       root.appendChild(makeRow(s.id, s.name, s.desc, s._idx, sel));
     }
-    if (sec === 3) {
+    if (sec === 3 && payload.phillips) {
       root.appendChild(makeRow("phillips", "필립스 곡선 (산점도 보기)",
         "실업률(가로축)과 인플레이션(세로축)의 관계를 점으로 표시합니다. 색이 진할수록 최근입니다.",
         -1, sel));
@@ -280,8 +290,7 @@ function renderFomc(d) {
   const empty = document.getElementById("fomcContent");
   const result = document.getElementById("fomcResult");
   const meta = document.getElementById("fomcMeta");
-  document.getElementById("fomcTitle").textContent =
-    state.country === "kr" ? "🏛️ 한국은행 금통위 시뮬레이션" : "🏛️ 연준 FOMC 시뮬레이션";
+  document.getElementById("fomcTitle").textContent = INSTITUTION[state.country];
   if (d && d.status === "running") {
     empty.classList.remove("hidden");
     empty.textContent = "⏳ 위원들이 토론 중입니다… (2~5분, 완료되면 자동으로 표시됩니다)";
@@ -299,6 +308,8 @@ function renderFomc(d) {
   empty.classList.add("hidden");
   result.classList.remove("hidden");
   meta.textContent = `실행: ${d.created} · 데이터 기준: ${d.data_updated}`;
+  state.fomcData[state.country] = d;
+  renderCompare();
 
   const votes = d.members.map((m) => m.vote.decision_1m);
   document.getElementById("fomcDecision").textContent =
@@ -386,6 +397,73 @@ function renderFomc(d) {
   addBubble("chair", "의장 성명", d.chair);
 }
 
+// ---------- 전망 비교 패널 (실제 vs IMF vs SEP vs AI) ----------
+function renderCompare() {
+  const payload = state.cache[state.country];
+  const box = document.getElementById("compareContent");
+  if (!payload) return;
+  const byId = {};
+  payload.series.forEach((s) => { byId[s.id] = s; });
+  const year = +payload.updated.slice(0, 4);
+  const lastOf = (id) => {
+    const s = byId[id];
+    return s && s.data.length ? s.data[s.data.length - 1] : null;
+  };
+  const yearVal = (id, y) => {
+    const s = byId[id];
+    if (!s) return null;
+    const hit = s.data.find((p) => p[0].slice(0, 4) === String(y));
+    return hit ? hit[1] : null;
+  };
+  const fomc = state.fomcData[state.country];
+  const median = (arr) => [...arr].sort((a, b) => a - b)[Math.floor(arr.length / 2)];
+  const ai = fomc && fomc.members ? {
+    m1: median(fomc.members.map((m) => m.vote.rate_1m)),
+    m6: median(fomc.members.map((m) => m.vote.rate_6m)),
+    y1: median(fomc.members.map((m) => m.vote.rate_1y)),
+  } : null;
+  const hasSep = !!byId.sep_ffr;
+  const coreId = byId.core_pce ? "core_pce" : (byId.core_cpi ? "core_cpi" : "infl");
+  const inflId = byId.head_pce ? "head_pce" : (byId.cpi ? "cpi" : "infl");
+  const fmt = (v) => (v == null ? "—" : `${Math.round(v * 100) / 100}%`);
+
+  const rows = [
+    { name: "정책금리", actual: lastOf("policy_rate"),
+      ai: ai ? [ai.m1, ai.m6, ai.y1] : null,
+      sep: hasSep ? [yearVal("sep_ffr", year), yearVal("sep_ffr", year + 1)] : null, imf: null },
+    { name: "실질GDP 성장률", actual: lastOf("gdp_growth"), ai: null,
+      sep: hasSep ? [yearVal("sep_gdp", year), yearVal("sep_gdp", year + 1)] : null,
+      imf: [yearVal("imf_gdp_fc", year), yearVal("imf_gdp_fc", year + 1)] },
+    { name: "인플레이션 (헤드라인)", actual: lastOf(inflId), ai: null,
+      sep: hasSep ? [yearVal("sep_pce", year), yearVal("sep_pce", year + 1)] : null,
+      imf: [yearVal("imf_infl_fc", year), yearVal("imf_infl_fc", year + 1)] },
+    { name: "근원 인플레이션", actual: lastOf(coreId), ai: null,
+      sep: hasSep ? [yearVal("sep_core", year), yearVal("sep_core", year + 1)] : null, imf: null },
+    { name: "실업률", actual: lastOf("unrate"), ai: null,
+      sep: hasSep ? [yearVal("sep_unrate", year), yearVal("sep_unrate", year + 1)] : null,
+      imf: [yearVal("imf_unemp_fc", year), yearVal("imf_unemp_fc", year + 1)] },
+  ];
+
+  let html = '<table class="compare"><tr><th>지표</th><th>현재 실제</th>' +
+    '<th>AI 시뮬레이션<span class="src">1개월 / 6개월 / 1년</span></th>' +
+    (hasSep ? `<th>연준 SEP<span class="src">${year}년말 / ${year + 1}년말</span></th>` : "") +
+    `<th>IMF 전망<span class="src">${year}년 / ${year + 1}년</span></th></tr>`;
+  for (const r of rows) {
+    html += `<tr><td class="rowname">${r.name}</td>`;
+    html += `<td>${r.actual ? `${fmt(r.actual[1])}<span class="src">${r.actual[0].slice(0, 7)}</span>` : "—"}</td>`;
+    html += `<td>${r.ai ? r.ai.map(fmt).join(" / ") : "—"}</td>`;
+    if (hasSep) html += `<td>${r.sep ? r.sep.map(fmt).join(" / ") : "—"}</td>`;
+    html += `<td>${r.imf ? r.imf.map(fmt).join(" / ") : "—"}</td></tr>`;
+  }
+  html += "</table>";
+  html += `<div class="compare-note">· AI 시뮬레이션은 매파·중립·비둘기파 3인 표결의 <b>중간값</b>` +
+    (fomc ? ` (이번 결정: ${fomc.decision})` : " (아직 실행 전이면 — 표시)") +
+    `이고 금리에만 적용됩니다 · SEP는 FOMC 위원 전망 중간값(연말 기준)` +
+    ` · IMF는 세계경제전망(WEO) 연평균 기준이라 서로 기준 시점이 조금 다릅니다</div>`;
+  box.className = "";
+  box.innerHTML = html;
+}
+
 async function fetchAI(kind, params = "", country = state.country) {
   if (STATIC) {
     const res = await fetch(`${kind}_${country}.json`);
@@ -441,17 +519,20 @@ async function loadAIPanels() {
 
 async function switchCountry(country) {
   state.country = country;
-  document.getElementById("tab-us").classList.toggle("active", country === "us");
-  document.getElementById("tab-kr").classList.toggle("active", country === "kr");
+  for (const c of COUNTRIES) {
+    document.getElementById(`tab-${c}`).classList.toggle("active", c === country);
+  }
   const payload = await loadCountry(country);
   document.getElementById("updated").textContent = "데이터 갱신: " + payload.updated;
   buildSidebar(payload);
   render();
+  renderCompare();
   loadAIPanels();
 }
 
-document.getElementById("tab-us").addEventListener("click", () => switchCountry("us"));
-document.getElementById("tab-kr").addEventListener("click", () => switchCountry("kr"));
+for (const c of COUNTRIES) {
+  document.getElementById(`tab-${c}`).addEventListener("click", () => switchCountry(c));
+}
 document.querySelectorAll(".period").forEach((btn) => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".period").forEach((b) => b.classList.remove("active"));

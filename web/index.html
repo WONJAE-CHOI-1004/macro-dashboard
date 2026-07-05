@@ -15,6 +15,8 @@
   <div class="country-tabs">
     <button id="tab-us" class="tab active">🇺🇸 미국</button>
     <button id="tab-kr" class="tab">🇰🇷 한국</button>
+    <button id="tab-jp" class="tab">🇯🇵 일본</button>
+    <button id="tab-ez" class="tab">🇪🇺 유로존</button>
   </div>
   <div class="period-tabs">
     <button class="period" data-years="5">5년</button>
@@ -55,6 +57,14 @@
         버튼을 누르면 회귀분석·시계열 분석 결과를 AI가 해석한 리포트를 생성합니다.
         (데이터가 갱신되지 않았으면 저장된 리포트를 재사용해 크레딧을 아낍니다)
       </div>
+    </div>
+
+    <div class="chart-box auto" id="comparePanel">
+      <div class="panel-head">
+        <h3>🔭 전망 비교 — 실제 vs IMF vs 연준 SEP vs AI 시뮬레이션</h3>
+        <span class="panel-meta">아래 표는 차트 데이터와 AI 시뮬레이션 결과에서 자동 취합됩니다</span>
+      </div>
+      <div id="compareContent" class="empty">데이터 로딩 후 표시됩니다…</div>
     </div>
 
     <div class="chart-box auto" id="fomcPanel">

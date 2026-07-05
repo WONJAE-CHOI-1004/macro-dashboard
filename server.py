@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 거시경제 지표 대시보드 서버
 - FRED(미국) / ECOS(한국) API에서 원자료를 받아
@@ -160,8 +160,11 @@ def wb(indicator, country, start=1980):
     return out
 
 
-def intl_series(cty):
-    """IMF·World Bank 공통 시리즈 (섹터 5). cty: 'USA' | 'KOR'"""
+def intl_series(imf_cty, wb_cty=None):
+    """IMF·World Bank 공통 시리즈 (섹터 5). imf_cty: IMF 코드(USA/KOR/JPN/EUQ),
+    wb_cty: World Bank 코드(기본은 IMF와 동일, 유로존은 EMU)"""
+    cty = imf_cty
+    wb_cty = wb_cty or imf_cty
     return [
         S("imf_gdp_fc", "IMF 전망: 실질GDP 성장률", 5, imf("NGDP_RPCH", cty), dash=True,
           desc="IMF 세계경제전망(WEO). 2031년까지의 전망치가 점선으로 이어집니다"),
@@ -175,13 +178,13 @@ def intl_series(cty):
           desc="경상수지 흑자(+)/적자(−) 비율. 대외 건전성 지표"),
         S("imf_fiscal", "재정수지/GDP (IMF)", 5, imf("GGXCNL_NGDP", cty),
           desc="일반정부 재정 흑자(+)/적자(−) 비율"),
-        S("wb_trade", "무역의존도 (수출입/GDP)", 5, wb("NE.TRD.GNFS.ZS", cty),
+        S("wb_trade", "무역의존도 (수출입/GDP)", 5, wb("NE.TRD.GNFS.ZS", wb_cty),
           desc="World Bank. 수출+수입 ÷ GDP — 대외 충격 민감도"),
-        S("wb_buffett", "버핏지표 (시가총액/GDP)", 5, wb("CM.MKT.LCAP.GD.ZS", cty),
+        S("wb_buffett", "버핏지표 (시가총액/GDP)", 5, wb("CM.MKT.LCAP.GD.ZS", wb_cty),
           desc="World Bank. 100% 이상이면 고평가 논쟁 구간, 150% 이상은 과열 신호로 통용"),
-        S("wb_gdppc", "1인당 GDP", 5, wb("NY.GDP.PCAP.CD", cty), axis="level", unit="달러",
+        S("wb_gdppc", "1인당 GDP", 5, wb("NY.GDP.PCAP.CD", wb_cty), axis="level", unit="달러",
           desc="World Bank, 명목 달러 기준"),
-        S("wb_old", "65세 이상 인구 비중", 5, wb("SP.POP.65UP.TO.ZS", cty),
+        S("wb_old", "65세 이상 인구 비중", 5, wb("SP.POP.65UP.TO.ZS", wb_cty),
           desc="World Bank. 고령화 속도 — 잠재성장률과 자연이자율(r*)을 낮추는 구조 요인"),
     ]
 
@@ -623,6 +626,133 @@ def build_kr():
     return {"series": series, "phillips": phillips}
 
 
+# ---------------------------------------------------------------- 일본 데이터
+def build_jp():
+    """일본. 주의: 이 환경에서 FRED의 일본 CPI 월간 시리즈가 중단돼
+    인플레이션은 GDP 디플레이터(분기)로 계산한다."""
+    unrate = fred("LRHUTTTTJPM156S")            # 실업률 (월, 계절조정)
+    rgdp = fred("JPNRGDPEXP")                    # 실질GDP (분기)
+    ngdp_lvl = fred("JPNNGDP")                   # 명목GDP (분기)
+    call_rate = fred("IRSTCI01JPM156N")          # 무담보 콜금리 (월)
+    gb10 = fred("IRLTLT01JPM156N")               # 국채 10년
+    nikkei = fred("NIKKEI225", freq="m")
+    fx = fred("DEXJPUS", freq="m")               # 엔/달러
+    wti = fred("MCOILWTICO")
+    brent = fred("MCOILBRENTEU")
+
+    rg = dict(rgdp)
+    deflator = [[d, round(v / rg[d] * 100, 3)] for d, v in ngdp_lvl if rg.get(d)]
+    infl = yoy(deflator, 4)                      # 디플레이터 전년비 (분기)
+    gdp_g = yoy(rgdp, 4)
+    ngdp_yoy = yoy(ngdp_lvl, 4)
+
+    logs = [math.log(v) * 100 for _, v in rgdp]
+    trend = hp_filter(logs, 1600.0)
+    gap_q = [[rgdp[i][0], round(logs[i] - trend[i], 2)] for i in range(len(rgdp))]
+    u_vals = [v for _, v in unrate]
+    u_trend = hp_filter(u_vals, 129600.0)
+    nairu = [[unrate[i][0], round(u_trend[i], 2)] for i in range(len(unrate))]
+    unemp_gap = [[unrate[i][0], round(u_vals[i] - u_trend[i], 2)] for i in range(len(unrate))]
+    okun_pred = [[m, round(-2.0 * v, 2)] for m, v in unemp_gap]
+
+    series = [
+        S("infl", "인플레이션 (GDP디플레이터)", 1, infl,
+          desc="FRED의 일본 CPI 월간 통계가 중단되어 GDP디플레이터 전년비(분기)로 대체. "
+               "IMF 전망(섹터5)의 CPI 연평균과 함께 보세요"),
+        S("unrate", "실업률 (계절조정)", 1, unrate, desc="월간 조화 실업률"),
+        S("gdp_growth", "실질GDP 성장률", 1, gdp_g, desc="전년동기대비 (분기)"),
+        S("policy_rate", "일본은행 정책금리 (콜금리)", 1, call_rate,
+          desc="무담보 콜금리 익일물 월평균 — BOJ 정책금리의 실효 지표"),
+        S("gb10", "국채 10년물 금리", 1, gb10, desc="일본 국채 10년 월평균"),
+        S("wti", "WTI 유가", 1, wti, axis="level", unit="$/배럴", desc="서부텍사스산 원유 월평균"),
+        S("brent", "브렌트 유가", 1, brent, axis="level", unit="$/배럴", desc="브렌트유 월평균"),
+    ]
+    months = [d for d, _ in call_rate]
+    pi = ffill_to(months, infl)
+    gap_m = ffill_to(months, gap_q)
+    pol = [dict(call_rate).get(m) for m in months]
+    series += policy_rules(months, pi, gap_m, pol, "실제 콜금리와 겹쳐 보세요.", "GDP디플레이터")
+    const_x = [[d, 3.0] for d, _ in ngdp_yoy]
+    series += [
+        S("ngdp_growth", "명목GDP 증가율", 2, ngdp_yoy,
+          desc="명목GDP 목표제: 일본에서 특히 오래 논의된 준칙 (디플레 탈출용)"),
+        S("ngdp_target", "명목GDP 목표선 (3.0%)", 2, const_x, dash=True,
+          desc="일본 논의에서 흔히 쓰이는 명목성장 목표 수준"),
+        S("output_gap", "산출갭 (HP필터 추정)", 3, gap_q,
+          desc="실질GDP 로그에 HP필터(λ=1600)를 적용한 추정치"),
+        S("nairu", "자연실업률 근사 (HP필터)", 3, nairu,
+          desc="실업률의 장기 추세를 NAIRU 근사치로 사용"),
+        S("unemp_gap", "실업률 갭", 3, unemp_gap, desc="실업률 − 추세. 마이너스면 과열 노동시장"),
+        S("okun", "오쿤 법칙 예측 산출갭", 3, okun_pred,
+          desc="산출갭 ≈ −2×실업률갭 (오쿤 계수 2 가정). 실제 산출갭과 겹쳐 보세요"),
+        S("stock_idx", "닛케이 225", 4, nikkei, axis="level", unit="", desc="월평균 종가"),
+        S("fx_rate", "엔/달러 환율", 4, fx, axis="level", unit="엔",
+          desc="월평균. 오르면 엔화 약세"),
+    ]
+    series += intl_series("JPN")
+    return {"series": series, "phillips": None}  # 월간 물가가 없어 필립스 산점도 생략
+
+
+# ---------------------------------------------------------------- 유로존 데이터
+def build_ez():
+    """유로존. 실업률 월간 시리즈가 중단돼 IMF 연간(전망 포함)으로 대체."""
+    hicp_idx = fred("CP0000EZ19M086NEST")            # HICP 종합 (월, 지수)
+    core_idx = fred("TOTNRGFOODEA20MI15XM")          # HICP 에너지·식품 제외 (월, 지수)
+    rgdp = fred("CLVMNACSCAB1GQEA19")                # 실질GDP (분기)
+    ngdp_lvl = fred("CPMNACSCAB1GQEA19")             # 명목GDP (분기)
+    dfr_d = fred("ECBDFR", start="1999-01-01")       # ECB 예금금리 (일별)
+    gb10 = fred("IRLTLT01EZM156N")
+    fx = fred("DEXUSEU", freq="m")                   # 달러/유로
+    wti = fred("MCOILWTICO")
+    brent = fred("MCOILBRENTEU")
+    unrate_a = wb("SL.UEM.TOTL.ZS", "EMU", 1991)     # 실업률 (연간, ILO — IMF 미제공 대체)
+
+    cpi = yoy(hicp_idx, 12)
+    core = yoy(core_idx, 12)
+    gdp_g = yoy(rgdp, 4)
+    ngdp_yoy = yoy(ngdp_lvl, 4)
+    policy = monthly_last(dfr_d)
+
+    logs = [math.log(v) * 100 for _, v in rgdp]
+    trend = hp_filter(logs, 1600.0)
+    gap_q = [[rgdp[i][0], round(logs[i] - trend[i], 2)] for i in range(len(rgdp))]
+
+    series = [
+        S("core_cpi", "근원 HICP 인플레이션 (에너지·식품 제외)", 1, core,
+          desc="ECB가 중시하는 근원물가 (전년동월대비)"),
+        S("cpi", "HICP 인플레이션", 1, cpi, desc="유로존 조화소비자물가 전년동월대비. ECB 목표 2%"),
+        S("unrate", "실업률 (연간, World Bank)", 1, unrate_a,
+          desc="유로존 월간 실업률 시리즈가 중단되어 World Bank 연간(ILO 기준)으로 대체"),
+        S("gdp_growth", "실질GDP 성장률", 1, gdp_g, desc="전년동기대비 (분기)"),
+        S("policy_rate", "ECB 예금금리", 1, policy,
+          desc="ECB 예금창구금리(DFR) 월말 기준 — 현재 ECB의 실질적 기준금리"),
+        S("gb10", "국채 10년물 금리 (유로존 평균)", 1, gb10, desc="유로존 장기금리 월평균"),
+        S("wti", "WTI 유가", 1, wti, axis="level", unit="$/배럴", desc="서부텍사스산 원유 월평균"),
+        S("brent", "브렌트 유가", 1, brent, axis="level", unit="$/배럴", desc="브렌트유 월평균"),
+    ]
+    months = [d for d, _ in core]
+    pi = [dict(core).get(m) for m in months]
+    gap_m = ffill_to(months, gap_q)
+    pol = [dict(policy).get(m) for m in months]
+    series += policy_rules(months, pi, gap_m, pol, "실제 ECB 예금금리와 겹쳐 보세요.", "근원 HICP")
+    const_x = [[d, 4.0] for d, _ in ngdp_yoy]
+    series += [
+        S("ngdp_growth", "명목GDP 증가율", 2, ngdp_yoy, desc="명목GDP 목표제 비교용"),
+        S("ngdp_target", "명목GDP 목표선 (4.0%)", 2, const_x, dash=True,
+          desc="실질성장+물가목표 수준의 명목성장 기준선"),
+        S("output_gap", "산출갭 (HP필터 추정)", 3, gap_q,
+          desc="실질GDP 로그에 HP필터(λ=1600)를 적용한 추정치"),
+        S("fx_rate", "달러/유로 환율", 4, fx, axis="level", unit="달러",
+          desc="월평균. 오르면 유로화 강세 (달러 기준 표기)"),
+    ]
+    series += intl_series("EUQ", "EMU")
+    return {"series": series, "phillips": None}  # 월간 실업률이 없어 필립스 산점도 생략
+
+
+BUILDERS = {"us": build_us, "kr": build_kr, "jp": build_jp, "ez": build_ez}
+COUNTRIES = tuple(BUILDERS)
+
+
 # ---------------------------------------------------------------- 캐시
 _build_lock = threading.Lock()
 
@@ -646,7 +776,8 @@ def get_payload(country, refresh=False):
 
 def _build_and_save(country, path):
     print(f"[{country}] 데이터 새로 수집 중...", flush=True)
-    payload = build_us() if country == "us" else build_kr()
+    payload = BUILDERS[country]()
+    payload["series"] = [s for s in payload["series"] if s["data"]]  # 빈 시리즈 제거
     payload["updated"] = time.strftime("%Y-%m-%d %H:%M")
     with open(path, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False)
@@ -741,8 +872,8 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/api/data":
             q = urllib.parse.parse_qs(parsed.query)
             country = q.get("country", ["us"])[0]
-            if country not in ("us", "kr"):
-                self._send(400, b'{"error":"country must be us or kr"}', "application/json")
+            if country not in COUNTRIES:
+                self._send(400, b'{"error":"unknown country"}', "application/json")
                 return
             try:
                 payload = get_payload(country, refresh="refresh" in q)
@@ -756,8 +887,8 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path in ("/api/report", "/api/fomc"):
             q = urllib.parse.parse_qs(parsed.query)
             country = q.get("country", ["us"])[0]
-            if country not in ("us", "kr"):
-                self._send(400, b'{"error":"country must be us or kr"}', "application/json")
+            if country not in COUNTRIES:
+                self._send(400, b'{"error":"unknown country"}', "application/json")
                 return
             try:
                 result = get_ai(parsed.path.rsplit("/", 1)[-1], country,
