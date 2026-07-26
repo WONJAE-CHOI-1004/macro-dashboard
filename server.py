@@ -800,7 +800,10 @@ def build_ez():
           desc="월평균. 오르면 유로화 강세 (달러 기준 표기)"),
     ]
     series += intl_series("EUQ", "EMU")
-    return {"series": series, "phillips": None}  # 월간 실업률이 없어 필립스 산점도 생략
+    un_map = dict(unrate)
+    phillips = {"x": "실업률(%)", "y": "근원 HICP 인플레이션(%)",
+                "points": [[un_map.get(m), v, m] for m, v in core if un_map.get(m) is not None]}
+    return {"series": series, "phillips": phillips}
 
 
 BUILDERS = {"us": build_us, "kr": build_kr, "jp": build_jp, "ez": build_ez}
