@@ -32,7 +32,7 @@ const state = {
 const DEFAULT_SEL = {
   us: ["core_pce", "policy_rate", "taylor"],
   kr: ["core_cpi", "policy_rate", "taylor"],
-  jp: ["infl", "policy_rate", "taylor"],
+  jp: ["core_cpi", "policy_rate", "taylor"],
   ez: ["core_cpi", "policy_rate", "taylor"],
 };
 
