@@ -910,7 +910,8 @@ def get_ai(kind, country, run=False, force=False):
 
 # ---------------------------------------------------------------- HTTP 서버
 MIME = {".html": "text/html", ".js": "text/javascript", ".css": "text/css",
-        ".png": "image/png", ".svg": "image/svg+xml", ".ico": "image/x-icon"}
+        ".png": "image/png", ".svg": "image/svg+xml", ".ico": "image/x-icon",
+        ".json": "application/json", ".xml": "application/xml"}
 
 
 class Handler(BaseHTTPRequestHandler):

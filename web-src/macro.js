@@ -53,7 +53,7 @@ function cutoffDate() {
 async function loadCountry(country) {
   if (state.cache[country]) return state.cache[country];
   document.getElementById("loading").style.display = "block";
-  const url = STATIC ? `data_${country}.json` : `/api/data?country=${country}`;
+  const url = STATIC ? `assets/macro-data/data_${country}.json` : `/api/data?country=${country}`;
   const res = await fetch(url);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -263,6 +263,23 @@ function render() {
 }
 
 // ---------- AI 리포트 ----------
+/** 첫 열에 구분명이 있고 이어지는 행은 비어 있는 표를 그룹 단위로 표시한다.
+ *  (예: '금리 준칙'에 표준 테일러·균형접근·관성형…, '통화량 준칙'에 M2·본원통화…) */
+function markRowGroups(table) {
+  const rows = [...table.querySelectorAll("tbody tr")];
+  const label = (r) => (r.cells[0] ? r.cells[0].textContent.trim() : "");
+  if (!rows.some((r) => !label(r))) return;   // 빈 칸이 없으면 그룹 표가 아님
+  table.classList.add("grouped");
+  let g = 0;
+  rows.forEach((r, i) => {
+    if (label(r)) {
+      if (i) g += 1;                          // 첫 행은 이미 0번 그룹
+      r.classList.add("group-start");
+    }
+    r.classList.add(`g${g % 4}`);
+  });
+}
+
 function renderReport(d) {
   const box = document.getElementById("reportContent");
   const meta = document.getElementById("reportMeta");
@@ -282,6 +299,14 @@ function renderReport(d) {
   }
   box.className = "report-md";
   box.innerHTML = marked.parse(d.markdown || "");
+  // 준칙 비교표처럼 열이 많은 표는 좁은 화면에서 넘치므로 스크롤 컨테이너로 감싼다
+  box.querySelectorAll("table").forEach((t) => {
+    const wrap = document.createElement("div");
+    wrap.className = "table-wrap";
+    t.replaceWith(wrap);
+    wrap.appendChild(t);
+    markRowGroups(t);
+  });
   meta.textContent = `생성: ${d.created} · 데이터 기준: ${d.data_updated}`;
 }
 
@@ -397,6 +422,53 @@ function renderFomc(d) {
   addBubble("chair", "의장 성명", d.chair);
 }
 
+// ---------- KPI 요약 카드 ----------
+function yoyDelta(s) {
+  const data = s.data;
+  if (!data.length) return null;
+  const last = data[data.length - 1];
+  const [y, m] = last[0].slice(0, 7).split("-");
+  const targetYm = `${+y - 1}-${m}`;
+  const hit = data.find((p) => p[0].slice(0, 7) === targetYm);
+  return hit ? last[1] - hit[1] : null;
+}
+
+function renderKpis() {
+  const payload = state.cache[state.country];
+  if (!payload) return;
+  const byId = {};
+  payload.series.forEach((s) => { byId[s.id] = s; });
+  const coreId = byId.core_pce ? "core_pce" : (byId.core_cpi ? "core_cpi" : (byId.infl ? "infl" : null));
+  const specs = [
+    { key: "rate", id: "policy_rate" },
+    { key: "infl", id: coreId },
+    { key: "unemp", id: "unrate" },
+    { key: "gdp", id: "gdp_growth" },
+  ];
+  specs.forEach((spec) => {
+    const box = document.getElementById(`kpi-${spec.key}`);
+    if (!box) return;
+    const valueEl = box.querySelector(".kpi-value");
+    const labelEl = box.querySelector(".kpi-label");
+    const metaEl = box.querySelector(".kpi-meta");
+    const s = spec.id ? byId[spec.id] : null;
+    if (!s || !s.data.length) {
+      valueEl.textContent = "—";
+      metaEl.innerHTML = "&nbsp;";
+      return;
+    }
+    // 국가마다 실제로 쓰는 지표가 다를 수 있어(예: 일본은 근원CPI가 없어 GDP디플레이터로 대체),
+    // 카드 라벨은 항상 그 시리즈의 실제 이름(server.py에 정의된 설명)을 그대로 보여준다.
+    labelEl.textContent = s.name;
+    const last = s.data[s.data.length - 1];
+    const fmt = (v) => v.toLocaleString(undefined, { maximumFractionDigits: 2 });
+    valueEl.textContent = `${fmt(last[1])}${s.unit || "%"}`;
+    const delta = yoyDelta(s);
+    metaEl.textContent = `${last[0].slice(0, 7)} 기준` +
+      (delta == null ? "" : ` · 전년동월대비 ${delta >= 0 ? "+" : ""}${fmt(delta)}%p`);
+  });
+}
+
 // ---------- 전망 비교 패널 (실제 vs IMF vs SEP vs AI) ----------
 function renderCompare() {
   const payload = state.cache[state.country];
@@ -466,7 +538,7 @@ function renderCompare() {
 
 async function fetchAI(kind, params = "", country = state.country) {
   if (STATIC) {
-    const res = await fetch(`${kind}_${country}.json`);
+    const res = await fetch(`assets/macro-data/${kind}_${country}.json`);
     if (!res.ok) return { none: true };
     return res.json();
   }
@@ -517,21 +589,35 @@ async function loadAIPanels() {
   try { renderFomc(await fetchAI("fomc")); } catch (e) { /* 무시 */ }
 }
 
+const COUNTRY_NAME = { us: "🇺🇸 미국", kr: "🇰🇷 한국", jp: "🇯🇵 일본", ez: "🇪🇺 유로존" };
+
 async function switchCountry(country) {
   state.country = country;
   for (const c of COUNTRIES) {
     document.getElementById(`tab-${c}`).classList.toggle("active", c === country);
   }
+  // 국가 선택이 사이드바로 옮겨가 본문에서 잘 안 보이므로 제목에 표시한다
+  const title = document.getElementById("countryTitle");
+  if (title) title.textContent = `${COUNTRY_NAME[country]} 거시경제 지표`;
   const payload = await loadCountry(country);
   document.getElementById("updated").textContent = "데이터 갱신: " + payload.updated;
   buildSidebar(payload);
   render();
+  renderKpis();
   renderCompare();
   loadAIPanels();
 }
 
 for (const c of COUNTRIES) {
-  document.getElementById(`tab-${c}`).addEventListener("click", () => switchCountry(c));
+  document.getElementById(`tab-${c}`).addEventListener("click", (e) => {
+    e.preventDefault();          // 사이드바 링크(href="#")라 스크롤 튐 방지
+    switchCountry(c);
+    // 좁은 화면에서는 사이드바가 본문을 덮으므로 선택 후 닫는다
+    if (window.innerWidth < 992 && window.coreui) {
+      const sb = coreui.Sidebar.getInstance(document.getElementById("sidebar"));
+      if (sb) sb.hide();
+    }
+  });
 }
 document.querySelectorAll(".period").forEach((btn) => {
   btn.addEventListener("click", () => {

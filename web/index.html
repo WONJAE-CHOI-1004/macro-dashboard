@@ -1,91 +1,293 @@
 <!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>거시경제 지표 대시보드</title>
-<link rel="stylesheet" href="style.css">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
-</head>
-<body>
-<header>
-  <h1>📊 거시경제 지표 대시보드</h1>
-  <div class="country-tabs">
-    <button id="tab-us" class="tab active">🇺🇸 미국</button>
-    <button id="tab-kr" class="tab">🇰🇷 한국</button>
-    <button id="tab-jp" class="tab">🇯🇵 일본</button>
-    <button id="tab-ez" class="tab">🇪🇺 유로존</button>
-  </div>
-  <div class="period-tabs">
-    <button class="period" data-years="5">5년</button>
-    <button class="period active" data-years="10">10년</button>
-    <button class="period" data-years="20">20년</button>
-    <button class="period" data-years="all">전체</button>
-  </div>
-  <span id="updated" class="updated"></span>
-</header>
+<!--
+* CoreUI - Free Bootstrap Admin Template
+* @version v5.5.0
+* @link https://coreui.io/product/free-bootstrap-admin-template/
+* Copyright (c) 2026 creativeLabs Łukasz Holeczek
+* Licensed under MIT (https://github.com/coreui/coreui-free-bootstrap-admin-template/blob/main/LICENSE)
+-->
 
-<div class="layout">
-  <aside id="sidebar">
-    <div id="loading" class="loading">데이터 불러오는 중… (첫 실행은 30초~1분 걸릴 수 있어요)</div>
-    <div id="sections"></div>
-  </aside>
-  <main>
-    <div class="chart-box">
-      <canvas id="mainChart"></canvas>
+<html lang="en">
+  <head>
+    <base href="./">
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
+    <meta name="description" content="CoreUI - Open Source Bootstrap Admin Template">
+    <meta name="author" content="Łukasz Holeczek">
+    <meta name="keyword" content="Bootstrap,Admin,Template,Open,Source,jQuery,CSS,HTML,RWD,Dashboard">
+    <title>거시경제 대시보드 · CoreUI</title>
+    <link rel="apple-touch-icon" sizes="57x57" href="assets/favicon/apple-icon-57x57.png">
+    <link rel="apple-touch-icon" sizes="60x60" href="assets/favicon/apple-icon-60x60.png">
+    <link rel="apple-touch-icon" sizes="72x72" href="assets/favicon/apple-icon-72x72.png">
+    <link rel="apple-touch-icon" sizes="76x76" href="assets/favicon/apple-icon-76x76.png">
+    <link rel="apple-touch-icon" sizes="114x114" href="assets/favicon/apple-icon-114x114.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="assets/favicon/apple-icon-120x120.png">
+    <link rel="apple-touch-icon" sizes="144x144" href="assets/favicon/apple-icon-144x144.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="assets/favicon/apple-icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="assets/favicon/apple-icon-180x180.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="assets/favicon/android-icon-192x192.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="96x96" href="assets/favicon/favicon-96x96.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon/favicon-16x16.png">
+    <link rel="manifest" href="assets/favicon/manifest.json">
+    <meta name="msapplication-TileColor" content="#ffffff">
+    <meta name="msapplication-TileImage" content="assets/favicon/ms-icon-144x144.png">
+    <meta name="theme-color" content="#ffffff">
+    <!-- Vendors styles-->
+    <link rel="stylesheet" href="vendors/simplebar/css/simplebar.css">
+    <link rel="stylesheet" href="css/vendors/simplebar.css">
+    <!-- Main styles for this application-->
+    <link href="css/style.min.css" rel="stylesheet">
+    <!-- We use those styles to show code examples, you should remove them in your application.-->
+    <link href="css/macro.min.css" rel="stylesheet">
+    <script src="js/config.js"></script>
+    <script src="js/color-modes.js"></script>
+  </head>
+  <body>
+    <div class="sidebar sidebar-dark sidebar-fixed border-end" id="sidebar">
+      <div class="sidebar-header border-bottom">
+        <div class="sidebar-brand me-auto">
+          <span class="sidebar-brand-full fs-5 fw-semibold">📊 거시경제</span>
+          <span class="sidebar-brand-narrow fs-5">📊</span>
+        </div>
+        <button class="btn-close d-lg-none" type="button" data-coreui-theme="dark" aria-label="Close" onclick="coreui.Sidebar.getInstance(document.querySelector('#sidebar')).toggle()"></button>
+      </div>
+      <ul class="sidebar-nav" data-coreui="navigation" data-simplebar>
+        
+        <li class="nav-title">국가</li>
+        <li class="nav-item">
+          <a class="nav-link active" href="#" id="tab-us">
+            <span class="nav-icon">🇺🇸</span>
+            미국
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#" id="tab-kr">
+            <span class="nav-icon">🇰🇷</span>
+            한국
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#" id="tab-jp">
+            <span class="nav-icon">🇯🇵</span>
+            일본
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#" id="tab-ez">
+            <span class="nav-icon">🇪🇺</span>
+            유로존
+          </a>
+        </li>
+              </ul>
+      <div class="sidebar-footer border-top d-none d-md-flex">
+        <button class="sidebar-toggler" type="button" data-coreui-toggle="unfoldable"></button>
+      </div>
     </div>
-    <div class="chart-box hidden" id="phillipsBox">
-      <h3 id="phillipsTitle">필립스 곡선 (산점도)</h3>
-      <canvas id="phillipsChart"></canvas>
-    </div>
-    <p class="footnote">
-      자료: FRED(세인트루이스 연준) · ECOS(한국은행) · KOSIS(통계청/기획재정부) · IMF WEO · World Bank · 6시간마다 자동 갱신 ·
-      레벨 지표(부채·유가 등)는 기간 시작점=100으로 지수화해 오른쪽 축에 표시됩니다.
-      섹터 2·3의 준칙 지표는 공식에 따라 자동 계산된 값입니다 (지표명에 마우스를 올리면 설명이 나옵니다).
-    </p>
+    <div class="wrapper d-flex flex-column min-vh-100">
+      <header class="header header-sticky p-0 mb-4">
+        <div class="container-fluid border-bottom px-4">
+          <button class="header-toggler" type="button" onclick="coreui.Sidebar.getInstance(document.querySelector('#sidebar')).toggle()" style="margin-inline-start: -14px">
+            <svg class="icon icon-lg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+              <path fill="var(--ci-primary-color, currentcolor)" d="M80 96h352v32H80zm0 144h352v32H80zm0 144h352v32H80z" class="ci-primary" />
+            </svg>
+          </button>
+          
+          <ul class="header-nav ms-auto">
+            <li class="nav-item py-1">
+              <div class="vr h-100 mx-2 text-body text-opacity-75"></div>
+            </li>
+            <li class="nav-item dropdown">
+              <button class="btn btn-link nav-link py-2 px-2 d-flex align-items-center" type="button" aria-expanded="false" data-coreui-toggle="dropdown">
+                <svg class="icon icon-lg theme-icon-active" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+                  <path fill="var(--ci-primary-color, currentcolor)" d="M256 16C123.452 16 16 123.452 16 256s107.452 240 240 240 240-107.452 240-240S388.548 16 256 16m-22 446.849a208.35 208.35 0 0 1-169.667-125.9c-.364-.859-.706-1.724-1.057-2.587L234 429.939Zm0-69.582L50.889 290.76A210 210 0 0 1 48 256q0-9.912.922-19.67L234 339.939Zm0-90L54.819 202.96a206 206 0 0 1 9.514-27.913Q67.1 168.5 70.3 162.191L234 253.934Zm0-86.015L86.914 134.819a209.4 209.4 0 0 1 22.008-25.9q3.72-3.72 7.6-7.228L234 166.027Zm0-87.708-89.648-49.093A206.95 206.95 0 0 1 234 49.151ZM464 256a207.775 207.775 0 0 1-198 207.761V48.239A207.79 207.79 0 0 1 464 256" class="ci-primary" />
+                </svg>
+              </button>
+              <ul class="dropdown-menu dropdown-menu-end" style="--cui-dropdown-min-width: 8rem">
+                <li>
+                  <button class="dropdown-item d-flex align-items-center" type="button" data-coreui-theme-value="light">
+                    <svg class="icon icon-lg me-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+                      <path fill="var(--ci-primary-color, currentcolor)" d="M256 104c-83.813 0-152 68.187-152 152s68.187 152 152 152 152-68.187 152-152-68.187-152-152-152m0 272a120 120 0 1 1 120-120 120.136 120.136 0 0 1-120 120M240 16h32v48h-32zm0 432h32v48h-32zm208-208h48v32h-48zm-432 0h48v32H16zm372.687 171.314 22.627-22.627 32 32-22.627 22.627zm-320-320 22.628-22.628 32 32-22.628 22.628zm-.002 329.375 32-32 22.628 22.626-32 32zm320.002-320.003 32-32 22.628 22.628-32 32z" class="ci-primary" />
+                    </svg>
+                    Light
+                  </button>
+                </li>
+                <li>
+                  <button class="dropdown-item d-flex align-items-center" type="button" data-coreui-theme-value="dark">
+                    <svg class="icon icon-lg me-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+                      <path fill="var(--ci-primary-color, currentcolor)" d="M268.279 496c-67.574 0-130.978-26.191-178.534-73.745S16 311.293 16 243.718A252.25 252.25 0 0 1 154.183 18.676a24.44 24.44 0 0 1 34.46 28.958 220.12 220.12 0 0 0 54.8 220.923A218.75 218.75 0 0 0 399.085 333.2a220.2 220.2 0 0 0 65.277-9.846 24.439 24.439 0 0 1 28.959 34.461A252.26 252.26 0 0 1 268.279 496M153.31 55.781A219.3 219.3 0 0 0 48 243.718C48 365.181 146.816 464 268.279 464a219.3 219.3 0 0 0 187.938-105.31 253 253 0 0 1-57.13 6.513 250.54 250.54 0 0 1-178.268-74.016 252.15 252.15 0 0 1-67.509-235.4Z" class="ci-primary" />
+                    </svg>
+                    Dark
+                  </button>
+                </li>
+                <li>
+                  <button class="dropdown-item d-flex align-items-center active" type="button" data-coreui-theme-value="auto">
+                    <svg class="icon icon-lg me-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+                      <path fill="var(--ci-primary-color, currentcolor)" d="M256 16C123.452 16 16 123.452 16 256s107.452 240 240 240 240-107.452 240-240S388.548 16 256 16m-22 446.849a208.35 208.35 0 0 1-169.667-125.9c-.364-.859-.706-1.724-1.057-2.587L234 429.939Zm0-69.582L50.889 290.76A210 210 0 0 1 48 256q0-9.912.922-19.67L234 339.939Zm0-90L54.819 202.96a206 206 0 0 1 9.514-27.913Q67.1 168.5 70.3 162.191L234 253.934Zm0-86.015L86.914 134.819a209.4 209.4 0 0 1 22.008-25.9q3.72-3.72 7.6-7.228L234 166.027Zm0-87.708-89.648-49.093A206.95 206.95 0 0 1 234 49.151ZM464 256a207.775 207.775 0 0 1-198 207.761V48.239A207.79 207.79 0 0 1 464 256" class="ci-primary" />
+                    </svg>
+                    Auto
+                  </button>
+                </li>
+              </ul>
+            </li>
+            </ul>
+        </div>
+        <div class="container-fluid px-4">
+          <nav aria-label="breadcrumb">
+            <ol class="breadcrumb my-0">
+              <li class="breadcrumb-item active"><span>거시경제 지표 대시보드</span></li>
+            </ol>
+          </nav>
+        </div>
+      </header>
+      <div class="body flex-grow-1">
+        <div class="container-lg px-4">
+          <div class="row g-4 mb-4">
+            <div class="col-sm-6 col-xl-3">
+              <div class="card text-white bg-primary h-100" id="kpi-rate">
+                <div class="card-body">
+                  <div class="fs-4 fw-semibold kpi-value">—</div>
+                  <div class="kpi-label">정책금리</div>
+                  <div class="small opacity-75 kpi-meta">&nbsp;</div>
+                </div>
+              </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+              <div class="card text-white bg-info h-100" id="kpi-infl">
+                <div class="card-body">
+                  <div class="fs-4 fw-semibold kpi-value">—</div>
+                  <div class="kpi-label">근원 인플레이션</div>
+                  <div class="small opacity-75 kpi-meta">&nbsp;</div>
+                </div>
+              </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+              <div class="card text-dark bg-warning h-100" id="kpi-unemp">
+                <div class="card-body">
+                  <div class="fs-4 fw-semibold kpi-value">—</div>
+                  <div class="kpi-label">실업률</div>
+                  <div class="small opacity-75 kpi-meta">&nbsp;</div>
+                </div>
+              </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+              <div class="card text-white bg-success h-100" id="kpi-gdp">
+                <div class="card-body">
+                  <div class="fs-4 fw-semibold kpi-value">—</div>
+                  <div class="kpi-label">실질GDP 성장률</div>
+                  <div class="small opacity-75 kpi-meta">&nbsp;</div>
+                </div>
+              </div>
+            </div>
+          </div>
 
-    <div class="chart-box auto" id="reportPanel">
-      <div class="panel-head">
-        <h3>📝 AI 분석 리포트</h3>
-        <button id="reportBtn" class="run-btn">리포트 생성</button>
-        <button id="reportForceBtn" class="run-btn ghost" title="데이터가 그대로여도 새로 생성 (크레딧 사용)">강제 재생성</button>
-        <span id="reportMeta" class="panel-meta"></span>
-      </div>
-      <div id="reportContent" class="report-md empty">
-        버튼을 누르면 회귀분석·시계열 분석 결과를 AI가 해석한 리포트를 생성합니다.
-        (데이터가 갱신되지 않았으면 저장된 리포트를 재사용해 크레딧을 아낍니다)
-      </div>
-    </div>
+          <div class="card mb-4">
+            <div class="card-body d-flex flex-wrap align-items-center gap-3">
+              <h4 class="mb-0 me-3" id="countryTitle">📊 거시경제 지표 대시보드</h4>
+              <div class="btn-group" role="group" aria-label="period">
+                <button class="btn btn-outline-secondary period" data-years="5" type="button">5년</button>
+                <button class="btn btn-outline-secondary period active" data-years="10" type="button">10년</button>
+                <button class="btn btn-outline-secondary period" data-years="20" type="button">20년</button>
+                <button class="btn btn-outline-secondary period" data-years="all" type="button">전체</button>
+              </div>
+              <span id="updated" class="ms-auto small text-body-secondary"></span>
+            </div>
+          </div>
 
-    <div class="chart-box auto" id="comparePanel">
-      <div class="panel-head">
-        <h3>🔭 전망 비교 — 실제 vs IMF vs 연준 SEP vs AI 시뮬레이션</h3>
-        <span class="panel-meta">아래 표는 차트 데이터와 AI 시뮬레이션 결과에서 자동 취합됩니다</span>
-      </div>
-      <div id="compareContent" class="empty">데이터 로딩 후 표시됩니다…</div>
-    </div>
+          <div class="row">
+            <div class="col-lg-3 mb-4">
+              <div class="card">
+                <div class="card-body macro-aside">
+                  <div id="loading" class="loading">데이터 불러오는 중… (첫 실행은 30초~1분 걸릴 수 있어요)</div>
+                  <div id="sections"></div>
+                </div>
+              </div>
+            </div>
+            <div class="col-lg-9">
+              <div class="card mb-4">
+                <div class="card-body chart-box">
+                  <canvas id="mainChart"></canvas>
+                </div>
+              </div>
+              <div class="card mb-4 hidden" id="phillipsBox">
+                <div class="card-body chart-box phillips-body">
+                  <h6 id="phillipsTitle" class="mb-2"></h6>
+                  <canvas id="phillipsChart"></canvas>
+                </div>
+              </div>
+              <p class="footnote text-body-secondary small">자료: FRED(세인트루이스 연준) · ECOS(한국은행) · KOSIS(통계청/기획재정부) · IMF WEO · World Bank · 6시간마다 자동 갱신 · 레벨 지표(부채·유가 등)는 기간 시작점=100으로 지수화해 오른쪽 축에 표시됩니다. 섹터 2·3의 준칙 지표는 공식에 따라 자동 계산된 값입니다 (지표명에 마우스를 올리면 설명이 나옵니다).</p>
 
-    <div class="chart-box auto" id="fomcPanel">
-      <div class="panel-head">
-        <h3 id="fomcTitle">🏛️ 통화정책위원회 시뮬레이션</h3>
-        <button id="fomcBtn" class="run-btn">시뮬레이션 실행</button>
-        <button id="fomcForceBtn" class="run-btn ghost" title="데이터가 그대로여도 새로 실행 (크레딧 사용)">강제 재실행</button>
-        <span id="fomcMeta" class="panel-meta"></span>
+              <div class="card mb-4">
+                <div class="card-body" id="reportPanel">
+                  <div class="panel-head d-flex flex-wrap align-items-center gap-2 mb-3">
+                    <h5 class="mb-0 me-2">📝 AI 분석 리포트</h5>
+                    <button id="reportBtn" class="btn btn-primary btn-sm">리포트 생성</button>
+                    <button id="reportForceBtn" class="btn btn-outline-primary btn-sm" title="데이터가 그대로여도 새로 생성 (크레딧 사용)">강제 재생성</button>
+                    <span id="reportMeta" class="small text-body-secondary"></span>
+                  </div>
+                  <div id="reportContent" class="report-md empty">버튼을 누르면 회귀분석·시계열 분석 결과를 AI가 해석한 리포트를 생성합니다. (데이터가 갱신되지 않았으면 저장된 리포트를 재사용해 크레딧을 아낍니다)</div>
+                </div>
+              </div>
+
+              <div class="card mb-4">
+                <div class="card-body" id="comparePanel">
+                  <div class="panel-head d-flex flex-wrap align-items-center gap-2 mb-3">
+                    <h5 class="mb-0 me-2">🔭 전망 비교 — 실제 vs IMF vs 연준 SEP vs AI 시뮬레이션</h5>
+                    <span class="small text-body-secondary">아래 표는 차트 데이터와 AI 시뮬레이션 결과에서 자동 취합됩니다</span>
+                  </div>
+                  <div id="compareContent" class="empty">데이터 로딩 후 표시됩니다…</div>
+                </div>
+              </div>
+
+              <div class="card mb-4">
+                <div class="card-body" id="fomcPanel">
+                  <div class="panel-head d-flex flex-wrap align-items-center gap-2 mb-3">
+                    <h5 id="fomcTitle" class="mb-0 me-2">🏛️ 통화정책위원회 시뮬레이션</h5>
+                    <button id="fomcBtn" class="btn btn-primary btn-sm">시뮬레이션 실행</button>
+                    <button id="fomcForceBtn" class="btn btn-outline-primary btn-sm" title="데이터가 그대로여도 새로 실행 (크레딧 사용)">강제 재실행</button>
+                    <span id="fomcMeta" class="small text-body-secondary"></span>
+                  </div>
+                  <div id="fomcContent" class="empty">매파·중립·비둘기파 위원 3명이 실제 지표를 근거로 2라운드 토론 후 표결합니다. 1개월·6개월·1년 시점의 점도표가 함께 생성됩니다. (실행 시에만 NVIDIA 크레딧 사용, 약 1~2분 소요)</div>
+                  <div id="fomcResult" class="hidden">
+                    <div id="fomcDecision" class="decision-banner"></div>
+                    <div class="dot-wrap"><canvas id="dotChart"></canvas></div>
+                    <div id="fomcTranscript"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div id="fomcContent" class="empty">
-        매파·중립·비둘기파 위원 3명이 실제 지표를 근거로 2라운드 토론 후 표결합니다.
-        1개월·6개월·1년 시점의 점도표가 함께 생성됩니다. (실행 시에만 NVIDIA 크레딧 사용, 약 1~2분 소요)
-      </div>
-      <div id="fomcResult" class="hidden">
-        <div id="fomcDecision" class="decision-banner"></div>
-        <div class="dot-wrap"><canvas id="dotChart"></canvas></div>
-        <div id="fomcTranscript"></div>
-      </div>
+      <footer class="footer px-4">
+        <div>
+          <a href="https://coreui.io">CoreUI</a>
+          <a href="https://coreui.io/product/free-bootstrap-admin-template/">Bootstrap Admin Template</a>
+          &copy; 2026 creativeLabs.
+        </div>
+        <div class="ms-auto">
+          Powered by&nbsp;
+          <a href="https://coreui.io/bootstrap/docs/">CoreUI UI Components</a>
+        </div>
+      </footer>
     </div>
-  </main>
-</div>
-<script src="app.js"></script>
-</body>
+    <!-- CoreUI and necessary plugins-->
+    <script src="vendors/@coreui/coreui/js/coreui.bundle.min.js"></script>
+    <script src="vendors/simplebar/js/simplebar.min.js"></script>
+    <script>
+      const header = document.querySelector("header.header");
+
+      document.addEventListener("scroll", () => {
+        if (header) {
+          header.classList.toggle("shadow-sm", document.documentElement.scrollTop > 0);
+        }
+      });
+    </script>
+    <!-- 거시경제 대시보드 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+    <script src="js/macro.js"></script>
+  </body>
 </html>

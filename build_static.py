@@ -20,6 +20,7 @@ import analysis  # noqa: E402
 import server    # noqa: E402
 
 OUT = os.path.join(BASE, "_site")
+DATA_REL = "assets/macro-data"   # 화면(js/macro.js)이 JSON을 읽어가는 위치
 
 
 def _pages_url():
@@ -37,7 +38,7 @@ def _fetch_previous(kind, country, dst):
     if not url:
         return False
     try:
-        with urllib.request.urlopen(f"{url}{kind}_{country}.json", timeout=30) as r:
+        with urllib.request.urlopen(f"{url}{DATA_REL}/{kind}_{country}.json", timeout=30) as r:
             data = r.read()
         with open(dst, "wb") as f:
             f.write(data)
@@ -49,13 +50,15 @@ def _fetch_previous(kind, country, dst):
 def build(with_ai=True):
     shutil.rmtree(OUT, ignore_errors=True)
     shutil.copytree(server.WEB, OUT)
+    data_dir = os.path.join(OUT, *DATA_REL.split("/"))
+    os.makedirs(data_dir, exist_ok=True)
 
     # index.html에 정적 모드 플래그 주입
     idx_path = os.path.join(OUT, "index.html")
     with open(idx_path, encoding="utf-8") as f:
         html = f.read()
-    html = html.replace('<script src="app.js"></script>',
-                        '<script>window.STATIC_MODE = true;</script>\n<script src="app.js"></script>')
+    html = html.replace('<script src="js/macro.js"></script>',
+                        '<script>window.STATIC_MODE = true;</script>\n<script src="js/macro.js"></script>')
     html = html.replace("6시간마다 자동 갱신", "매주 자동 갱신 (GitHub Actions)")
     with open(idx_path, "w", encoding="utf-8") as f:
         f.write(html)
@@ -63,11 +66,11 @@ def build(with_ai=True):
     for country in ("us", "kr", "jp", "ez"):
         print(f"[{country}] 데이터 수집...", flush=True)
         payload = server.get_payload(country, refresh=True)
-        with open(os.path.join(OUT, f"data_{country}.json"), "w", encoding="utf-8") as f:
+        with open(os.path.join(data_dir, f"data_{country}.json"), "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False)
 
         for kind in ("report", "fomc"):
-            dst = os.path.join(OUT, f"{kind}_{country}.json")
+            dst = os.path.join(data_dir, f"{kind}_{country}.json")
             if with_ai:
                 time.sleep(5)  # 연속 호출 레이트리밋 완화
                 print(f"[{country}] AI {kind} 생성...", flush=True)

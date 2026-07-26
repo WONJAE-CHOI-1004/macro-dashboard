@@ -1,0 +1,245 @@
+// 거시경제 대시보드 — CoreUI 이식 커스텀 스타일
+.chart-box {
+  position: relative;
+  height: 62vh;
+  min-height: 420px;
+}
+.chart-box.phillips-body {
+  height: 48vh;
+  min-height: 360px;
+}
+.hidden {
+  display: none !important;
+}
+
+.macro-aside {
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+}
+.loading {
+  font-size: 13px;
+  padding: 8px 0;
+}
+.section-title {
+  font-size: 13px;
+  font-weight: bold;
+  color: var(--cui-primary, #2456d6);
+  margin: 14px 0 6px;
+  padding-bottom: 4px;
+  border-bottom: 2px solid var(--cui-border-color, #e8edf8);
+}
+.section-title:first-child {
+  margin-top: 0;
+}
+label.ind {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+label.ind:hover {
+  background: var(--cui-tertiary-bg, #f0f4fc);
+}
+label.ind input {
+  accent-color: var(--cui-primary, #2456d6);
+}
+.swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  visibility: hidden;
+}
+label.ind.on .swatch {
+  visibility: visible;
+}
+
+.footnote {
+  line-height: 1.6;
+}
+
+.panel-meta {
+  font-size: 12px;
+}
+.empty {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--cui-secondary-color);
+}
+
+.report-md {
+  font-size: 14px;
+  line-height: 1.8;
+}
+.report-md h2 {
+  font-size: 16px;
+  margin: 16px 0 6px;
+  color: var(--cui-primary, #2456d6);
+}
+.report-md h3 {
+  font-size: 14px;
+  margin: 12px 0 4px;
+}
+.report-md ul,
+.report-md ol {
+  padding-left: 22px;
+}
+.report-md p {
+  margin: 6px 0;
+}
+
+// AI 리포트 본문의 마크다운 표 (준칙 비교표 등)
+.table-wrap {
+  overflow-x: auto;      // 열이 많은 표는 좁은 화면에서 가로 스크롤
+  margin: 10px 0 14px;
+}
+.report-md table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.report-md th,
+.report-md td {
+  border: 1px solid var(--cui-border-color, #e2e6ee);
+  padding: 7px 10px;
+  text-align: center;   // 숫자·텍스트가 섞여 나오므로 비교표와 같은 가운데 정렬
+  white-space: nowrap;
+  vertical-align: top;
+}
+.report-md th {
+  background: var(--cui-tertiary-bg, #f0f4fc);
+  font-weight: 600;
+}
+// 첫 열은 대개 항목 이름이라 왼쪽 정렬
+.report-md th:first-child,
+.report-md td:first-child {
+  text-align: left;
+  white-space: normal;
+}
+.report-md tbody tr:nth-child(even) {
+  background: var(--cui-secondary-bg, rgba(0, 0, 0, 0.02));
+}
+
+// 첫 열에 구분명이 있고 이어지는 행은 비어 있는 표(금리 준칙 / 통화량 준칙 등)를
+// 그룹 단위로 묶어 보여준다. 그룹 수는 리포트마다 달라서 4색을 순환시킨다.
+$groups: (0: primary, 1: success, 2: warning, 3: info);
+
+.report-md table.grouped {
+  tbody tr:nth-child(even) {
+    background: none;          // 그룹 색과 겹치지 않도록 줄무늬 해제
+  }
+  tbody tr.group-start td {
+    border-top: 2px solid var(--cui-border-color-translucent, #b1b7c1);
+  }
+  tbody td:first-child {
+    font-weight: 600;
+  }
+
+  @each $i, $c in $groups {
+    tbody tr.g#{$i} td:first-child {
+      background: rgba(var(--cui-#{$c}-rgb), 0.16);
+    }
+    tbody tr.g#{$i} td:nth-child(2) {
+      background: rgba(var(--cui-#{$c}-rgb), 0.07);
+    }
+  }
+}
+
+table.compare {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+table.compare th,
+table.compare td {
+  border: 1px solid var(--cui-border-color, #e2e6ee);
+  padding: 7px 10px;
+  text-align: center;
+}
+table.compare th {
+  background: var(--cui-tertiary-bg, #f0f4fc);
+}
+table.compare td.rowname {
+  text-align: left;
+  font-weight: bold;
+}
+table.compare .src {
+  font-size: 11px;
+  color: var(--cui-secondary-color);
+  display: block;
+}
+.compare-note {
+  font-size: 12px;
+  margin-top: 8px;
+  line-height: 1.6;
+  color: var(--cui-secondary-color);
+}
+
+.decision-banner {
+  font-size: 16px;
+  font-weight: bold;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: rgba(13, 110, 253, 0.1);
+  border: 1px solid rgba(13, 110, 253, 0.25);
+  margin-bottom: 12px;
+}
+.dot-wrap {
+  height: 300px;
+  margin-bottom: 14px;
+  position: relative;
+}
+.bubble {
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin: 8px 0;
+  font-size: 13px;
+  line-height: 1.7;
+  border-left: 4px solid #ccc;
+  background: var(--cui-tertiary-bg, #f8f9fb);
+}
+.bubble .who {
+  font-weight: bold;
+  font-size: 13px;
+  margin-bottom: 4px;
+  display: block;
+}
+.bubble.hawk {
+  border-left-color: #e0403c;
+}
+.bubble.hawk .who {
+  color: #e0403c;
+}
+.bubble.neutral {
+  border-left-color: #6b7280;
+}
+.bubble.neutral .who {
+  color: #6b7280;
+}
+.bubble.dove {
+  border-left-color: #2456d6;
+}
+.bubble.dove .who {
+  color: #2456d6;
+}
+.bubble.chair {
+  border-left-color: #12945f;
+  background: rgba(18, 148, 95, 0.08);
+}
+.bubble.chair .who {
+  color: #12945f;
+}
+.round-title {
+  font-size: 13px;
+  font-weight: bold;
+  margin: 14px 0 4px;
+}
+
+@media (max-width: 991.98px) {
+  .macro-aside {
+    max-height: none;
+  }
+}
