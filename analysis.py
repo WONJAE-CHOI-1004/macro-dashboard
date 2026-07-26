@@ -128,12 +128,12 @@ def build_digest(country, payload):
     sd = {s["id"]: s["data"] for s in payload["series"]}
     name = {s["id"]: s["name"] for s in payload["series"]}
     kr = country == "kr"
-    core_id = {"us": "core_pce", "kr": "core_cpi", "jp": "infl", "ez": "core_cpi"}[country]
-    infl_id = {"us": "head_pce", "kr": "cpi", "jp": "infl", "ez": "cpi"}[country]
+    core_id = {"us": "core_pce", "kr": "core_cpi", "jp": "core_cpi", "ez": "core_cpi"}[country]
+    infl_id = {"us": "head_pce", "kr": "cpi", "jp": "cpi", "ez": "cpi"}[country]
     long_id, short_id = {"us": ("gs10", "gs2"), "kr": ("ktb10", "ktb3"),
                          "jp": ("gb10", None), "ez": ("gb10", None)}[country]
-    core_label = "인플레이션(GDP디플레이터, 분기)" if country == "jp" else "근원 인플레이션"
-    per = "12개 분기" if country == "jp" else "12개월"
+    core_label = "근원 인플레이션"
+    per = "12개월"
 
     def last(sid):
         d = sd.get(sid)
@@ -176,7 +176,7 @@ def build_digest(country, payload):
     if country == "us":
         add(f"- CPI 12개월 추이: {trail('cpi', 12)}")
     c_now, c_6m, c_12m = last(core_id), ago(core_id, 6), ago(core_id, 12)
-    if c_now and c_6m and c_12m and country != "jp":
+    if c_now and c_6m and c_12m:
         add(f"- 근원 모멘텀: 6개월 변화 {c_now[1]-c_6m[1]:+.2f}%p, 12개월 변화 {c_now[1]-c_12m[1]:+.2f}%p (목표 2%)")
         if c_now[1] > 2.5:
             signals.append(f"근원 인플레이션 {c_now[1]:.1f}%로 목표(2%) 상회, 6개월 모멘텀 {c_now[1]-c_6m[1]:+.1f}%p")
