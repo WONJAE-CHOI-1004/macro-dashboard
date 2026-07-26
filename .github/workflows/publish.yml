@@ -26,6 +26,7 @@ jobs:
       ECOS_API_KEY: ${{ secrets.ECOS_API_KEY }}
       KOSIS_API_KEY: ${{ secrets.KOSIS_API_KEY }}
       NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+      ESTAT_API_KEY: ${{ secrets.ESTAT_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
