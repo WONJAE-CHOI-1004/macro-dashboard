@@ -43,6 +43,7 @@ except FileNotFoundError:
 FRED_KEY = ENV.get("FRED_API_KEY") or os.environ.get("FRED_API_KEY", "")
 ECOS_KEY = ENV.get("ECOS_API_KEY") or os.environ.get("ECOS_API_KEY", "")
 KOSIS_KEY = ENV.get("KOSIS_API_KEY") or os.environ.get("KOSIS_API_KEY", "")
+ESTAT_KEY = ENV.get("ESTAT_API_KEY") or os.environ.get("ESTAT_API_KEY", "")
 
 
 def http_json(url, timeout=60, tries=3):
@@ -156,6 +157,45 @@ def wb(indicator, country, start=1980):
     d = http_json(url)
     rows = d[1] if len(d) > 1 and d[1] else []
     out = [[f"{r['date']}-01-01", float(r["value"])] for r in rows if r["value"] is not None]
+    out.sort(key=lambda x: x[0])
+    return out
+
+
+def eurostat(dataset, geo, **filters):
+    """Eurostat 통계청 API(JSON-stat) → [[YYYY-MM-01, float], ...] (월간)
+    FRED의 유로존 월간 실업률 피드가 2023년에 끊겨서 1차 소스로 직접 조회한다."""
+    params = {"format": "JSON", "lang": "EN", "geo": geo}
+    params.update(filters)
+    url = (f"https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/{dataset}"
+           f"?{urllib.parse.urlencode(params)}")
+    d = http_json(url)
+    time_idx = d["dimension"]["time"]["category"]["index"]
+    values = d["value"]
+    out = [[f"{t}-01", float(values[str(idx)])] for t, idx in time_idx.items()
+           if str(idx) in values]
+    out.sort(key=lambda x: x[0])
+    return out
+
+
+def estat(stats_id, cat01, area="00000", tab="3"):
+    """e-Stat(일본 총무성 통계국) API → [[YYYY-MM-01, float], ...] (월간, 전년동월비 %)
+    FRED의 일본 CPI 월간 피드가 2022년에 끊겨서 1차 소스로 직접 조회한다.
+    tab=3(전년同月比), area=00000(全国)이 기본값."""
+    params = {"appId": ESTAT_KEY, "statsDataId": stats_id, "cdTab": tab, "cdArea": area, "cdCat01": cat01}
+    url = "https://api.e-stat.go.jp/rest/3.0/app/json/getStatsData?" + urllib.parse.urlencode(params)
+    d = http_json(url)
+    result = d["GET_STATS_DATA"]["RESULT"]
+    if result.get("STATUS") != 0:
+        raise RuntimeError(f"e-Stat 오류: {result.get('ERROR_MSG')}")
+    values = d["GET_STATS_DATA"]["STATISTICAL_DATA"]["DATA_INF"]["VALUE"]
+    if isinstance(values, dict):
+        values = [values]
+    out = []
+    for v in values:
+        t = v["@time"]
+        if t[4:6] != "00":  # "10" 등 월간이 아닌 집계(연간)는 제외
+            continue
+        out.append([f"{t[:4]}-{t[6:8]}-01", float(v["$"])])
     out.sort(key=lambda x: x[0])
     return out
 
@@ -628,8 +668,8 @@ def build_kr():
 
 # ---------------------------------------------------------------- 일본 데이터
 def build_jp():
-    """일본. 주의: 이 환경에서 FRED의 일본 CPI 월간 시리즈가 중단돼
-    인플레이션은 GDP 디플레이터(분기)로 계산한다."""
+    """일본. FRED의 일본 CPI 월간 피드는 2022년에 끊겨서, CPI/근원CPI는
+    e-Stat(일본 총무성 통계국) API에서 1차 소스로 직접 조회한다."""
     unrate = fred("LRHUTTTTJPM156S")            # 실업률 (월, 계절조정)
     rgdp = fred("JPNRGDPEXP")                    # 실질GDP (분기)
     ngdp_lvl = fred("JPNNGDP")                   # 명목GDP (분기)
@@ -640,9 +680,8 @@ def build_jp():
     wti = fred("MCOILWTICO")
     brent = fred("MCOILBRENTEU")
 
-    rg = dict(rgdp)
-    deflator = [[d, round(v / rg[d] * 100, 3)] for d, v in ngdp_lvl if rg.get(d)]
-    infl = yoy(deflator, 4)                      # 디플레이터 전년비 (분기)
+    cpi = estat("0003427113", "0001")            # 전국 총합 CPI 전년동월비 (e-Stat)
+    core = estat("0003427113", "0161")           # 생선식품 제외 근원CPI 전년동월비 (e-Stat)
     gdp_g = yoy(rgdp, 4)
     ngdp_yoy = yoy(ngdp_lvl, 4)
 
@@ -656,9 +695,9 @@ def build_jp():
     okun_pred = [[m, round(-2.0 * v, 2)] for m, v in unemp_gap]
 
     series = [
-        S("infl", "인플레이션 (GDP디플레이터)", 1, infl,
-          desc="FRED의 일본 CPI 월간 통계가 중단되어 GDP디플레이터 전년비(분기)로 대체. "
-               "IMF 전망(섹터5)의 CPI 연평균과 함께 보세요"),
+        S("core_cpi", "근원 CPI 인플레이션 (생선식품 제외)", 1, core,
+          desc="일본은행이 중시하는 근원물가. e-Stat 전국 소비자물가지수 전년동월비"),
+        S("cpi", "CPI 인플레이션", 1, cpi, desc="전국 소비자물가지수(종합) 전년동월비. e-Stat"),
         S("unrate", "실업률 (계절조정)", 1, unrate, desc="월간 조화 실업률"),
         S("gdp_growth", "실질GDP 성장률", 1, gdp_g, desc="전년동기대비 (분기)"),
         S("policy_rate", "일본은행 정책금리 (콜금리)", 1, call_rate,
@@ -668,10 +707,10 @@ def build_jp():
         S("brent", "브렌트 유가", 1, brent, axis="level", unit="$/배럴", desc="브렌트유 월평균"),
     ]
     months = [d for d, _ in call_rate]
-    pi = ffill_to(months, infl)
+    pi = ffill_to(months, core)
     gap_m = ffill_to(months, gap_q)
     pol = [dict(call_rate).get(m) for m in months]
-    series += policy_rules(months, pi, gap_m, pol, "실제 콜금리와 겹쳐 보세요.", "GDP디플레이터")
+    series += policy_rules(months, pi, gap_m, pol, "실제 콜금리와 겹쳐 보세요.", "근원CPI")
     const_x = [[d, 3.0] for d, _ in ngdp_yoy]
     series += [
         S("ngdp_growth", "명목GDP 증가율", 2, ngdp_yoy,
@@ -690,7 +729,10 @@ def build_jp():
           desc="월평균. 오르면 엔화 약세"),
     ]
     series += intl_series("JPN")
-    return {"series": series, "phillips": None}  # 월간 물가가 없어 필립스 산점도 생략
+    un_map = dict(unrate)
+    phillips = {"x": "실업률(%)", "y": "근원 CPI 인플레이션(%)",
+                "points": [[un_map.get(m), v, m] for m, v in core if un_map.get(m) is not None]}
+    return {"series": series, "phillips": phillips}
 
 
 # ---------------------------------------------------------------- 유로존 데이터
@@ -705,7 +747,8 @@ def build_ez():
     fx = fred("DEXUSEU", freq="m")                   # 달러/유로
     wti = fred("MCOILWTICO")
     brent = fred("MCOILBRENTEU")
-    unrate_a = wb("SL.UEM.TOTL.ZS", "EMU", 1991)     # 실업률 (연간, ILO — IMF 미제공 대체)
+    unrate = eurostat("une_rt_m", "EA21", sex="T", age="TOTAL", unit="PC_ACT", s_adj="SA")
+    # 월간 조화실업률 (Eurostat une_rt_m). FRED의 유로존 월간 실업률 피드는 2023년에 끊김
 
     cpi = yoy(hicp_idx, 12)
     core = yoy(core_idx, 12)
@@ -721,8 +764,8 @@ def build_ez():
         S("core_cpi", "근원 HICP 인플레이션 (에너지·식품 제외)", 1, core,
           desc="ECB가 중시하는 근원물가 (전년동월대비)"),
         S("cpi", "HICP 인플레이션", 1, cpi, desc="유로존 조화소비자물가 전년동월대비. ECB 목표 2%"),
-        S("unrate", "실업률 (연간, World Bank)", 1, unrate_a,
-          desc="유로존 월간 실업률 시리즈가 중단되어 World Bank 연간(ILO 기준)으로 대체"),
+        S("unrate", "실업률 (계절조정)", 1, unrate,
+          desc="Eurostat 월간 조화실업률(계절조정). FRED의 유로존 월간 실업률 피드가 끊겨 1차 소스로 직접 조회"),
         S("gdp_growth", "실질GDP 성장률", 1, gdp_g, desc="전년동기대비 (분기)"),
         S("policy_rate", "ECB 예금금리", 1, policy,
           desc="ECB 예금창구금리(DFR) 월말 기준 — 현재 ECB의 실질적 기준금리"),

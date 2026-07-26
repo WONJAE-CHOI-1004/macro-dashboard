@@ -15,7 +15,7 @@ import urllib.request
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 NV_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
-NV_MODEL = "qwen/qwen3.5-122b-a10b"
+NV_MODEL = "qwen/qwen3-next-80b-a3b-instruct"
 
 
 def _load_env():
