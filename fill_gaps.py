@@ -12,6 +12,7 @@ import time
 BASE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BASE)
 import analysis  # noqa: E402
+import server    # noqa: E402
 
 OUT = os.path.join(BASE, "_site")
 
@@ -30,8 +31,12 @@ for country, kind in TARGETS:
               else analysis.run_fomc(country, payload))
     result["data_updated"] = payload["updated"]
     result["created"] = time.strftime("%Y-%m-%d %H:%M")
-    with open(os.path.join(OUT, f"{kind}_{country}.json"), "w", encoding="utf-8") as f:
-        json.dump(result, f, ensure_ascii=False)
+    # _site은 build_static.py가 매 빌드마다 통째로 지우므로, reports/에도 남겨야
+    # 다음 빌드가 "저장본 재사용"으로 복구할 수 있다 (안 그러면 결과가 유실됨)
+    for path in (os.path.join(OUT, f"{kind}_{country}.json"),
+                 server._ai_path(kind, country)):
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(result, f, ensure_ascii=False)
     print(f"[{country}] {kind} 완료", flush=True)
     time.sleep(5)
 

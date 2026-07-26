@@ -169,6 +169,13 @@ def eurostat(dataset, geo, **filters):
     url = (f"https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/{dataset}"
            f"?{urllib.parse.urlencode(params)}")
     d = http_json(url)
+    # JSON-stat의 value는 전체 차원을 평탄화한 인덱스로 키를 매긴다. 아래에서
+    # 시간축 인덱스를 그대로 키로 쓰므로, 시간 외 차원이 모두 1개로 좁혀졌는지
+    # 확인한다 (필터가 빠지면 조용히 엉뚱한 계열을 반환하기 때문)
+    dims, sizes = d["id"], d["size"]
+    loose = [dims[i] for i in range(len(dims)) if dims[i] != "time" and sizes[i] != 1]
+    if loose:
+        raise RuntimeError(f"Eurostat {dataset}: 차원 {loose}이(가) 좁혀지지 않음 — 필터를 지정하세요")
     time_idx = d["dimension"]["time"]["category"]["index"]
     values = d["value"]
     out = [[f"{t}-01", float(values[str(idx)])] for t, idx in time_idx.items()
@@ -195,7 +202,11 @@ def estat(stats_id, cat01, area="00000", tab="3"):
         t = v["@time"]
         if t[4:6] != "00":  # "10" 등 월간이 아닌 집계(연간)는 제외
             continue
-        out.append([f"{t[:4]}-{t[6:8]}-01", float(v["$"])])
+        try:
+            val = float(v["$"])
+        except ValueError:
+            continue  # 비수치 셀("-", "***" 등 미공표·비밀보호)은 건너뜀
+        out.append([f"{t[:4]}-{t[6:8]}-01", val])
     out.sort(key=lambda x: x[0])
     return out
 
