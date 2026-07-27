@@ -6,6 +6,7 @@
 - 웹 화면(web/ 폴더)에 JSON으로 전달한다.
 실행:  py server.py --open
 """
+import datetime
 import json
 import math
 import os
@@ -80,6 +81,88 @@ def fred(series_id, units=None, start="1985-01-01", freq=None):
         if o["value"] not in (".", ""):
             out.append([o["date"], float(o["value"])])
     return out
+
+
+def fred_release_dates(release_id, start, end):
+    """FRED 릴리스 캘린더 → 예정 발표일 [YYYY-MM-DD, ...]
+    include_release_dates_with_no_data=true 여야 아직 발표되지 않은 예정일이 나온다."""
+    params = {
+        "release_id": release_id, "api_key": FRED_KEY, "file_type": "json",
+        "realtime_start": start, "realtime_end": end,
+        "include_release_dates_with_no_data": "true",
+        "sort_order": "asc", "limit": 100,
+    }
+    url = "https://api.stlouisfed.org/fred/release/dates?" + urllib.parse.urlencode(params)
+    try:
+        d = http_json(url)
+    except Exception as e:
+        print(f"릴리스 일정({release_id}) 조회 실패({e}) → 건너뜀", flush=True)
+        return []
+    return [x["date"] for x in d.get("release_dates", [])]
+
+
+# 미국 주요 지표 발표일 (FRED 릴리스 ID). 다른 나라는 FRED에 발표 일정이 없다.
+US_RELEASES = [(10, "CPI", "cpi"), (54, "PCE·개인소득", "pce"),
+               (50, "고용상황", "jobs"), (53, "GDP", "gdp")]
+
+
+def _prev_month(date_str):
+    """월간 지표는 직전 달 수치를 발표한다 (8/12 발표 → 7월 CPI)"""
+    y, m = int(date_str[:4]), int(date_str[5:7])
+    return (y - 1, 12) if m == 1 else (y, m - 1)
+
+
+def _prev_quarter(date_str):
+    """분기 종료 약 한 달 뒤 속보치가 나오므로, 발표일 25일 전 시점의 직전 분기가 대상"""
+    d = datetime.date(int(date_str[:4]), int(date_str[5:7]), int(date_str[8:10]))
+    d -= datetime.timedelta(days=25)
+    q = (d.month - 1) // 3          # 0~3
+    return (d.year - 1, 4) if q == 0 else (d.year, q)
+
+
+# BEA는 같은 분기를 속보 → 잠정 → 확정 순으로 세 번 발표한다
+GDP_STAGE = ["속보치", "잠정치", "확정치"]
+
+
+def build_calendar(country, today=None):
+    """다가오는 발표 일정 = 중앙은행 회의일(meetings.json) + 미국 지표 발표일(FRED)"""
+    today = today or time.strftime("%Y-%m-%d")
+    end = f"{int(today[:4]) + 2}-12-31"
+    try:
+        with open(os.path.join(BASE, "meetings.json"), encoding="utf-8") as f:
+            meetings = json.load(f)
+    except Exception as e:
+        print(f"meetings.json 읽기 실패({e}) → 회의 일정 생략", flush=True)
+        meetings = {}
+
+    inst = {"us": "FOMC 회의", "kr": "금통위", "jp": "BOJ 금정위", "ez": "ECB 정책이사회"}[country]
+    extra = {"us": "점도표(SEP)", "jp": "전망 리포트"}.get(country, "")
+    events = []
+    for m in meetings.get(country, []):
+        if m["end"] < today:
+            continue
+        label = inst + (f" · {extra}" if m.get("sep") and extra else "")
+        events.append({"date": m["start"], "end": m["end"], "kind": "meeting", "label": label})
+
+    if country == "us":
+        for rid, name, kind in US_RELEASES:
+            dates = fred_release_dates(rid, today, end)
+            seen_q = {}
+            for d in dates:
+                if kind == "gdp":
+                    y, q = _prev_quarter(d)
+                    n = seen_q[(y, q)] = seen_q.get((y, q), 0) + 1
+                    stage = GDP_STAGE[n - 1] if n <= len(GDP_STAGE) else f"{n}차"
+                    label = f"{q}분기 GDP ({stage})"
+                else:
+                    _, m = _prev_month(d)
+                    label = f"{m}월 {name}"
+                events.append({"date": d, "end": d, "kind": kind, "label": label})
+
+    events.sort(key=lambda e: (e["date"], e["label"]))
+    # 목록이 곧 바닥나면 화면에서 갱신 안내를 띄우도록 마지막 회의일을 함께 넘긴다
+    last = max((m["end"] for m in meetings.get(country, [])), default=None)
+    return {"events": events, "meetings_until": last, "updated": meetings.get("_updated")}
 
 
 def _ecos_date(t, cycle):
@@ -835,6 +918,7 @@ def _build_and_save(country, path):
     print(f"[{country}] 데이터 새로 수집 중...", flush=True)
     payload = BUILDERS[country]()
     payload["series"] = [s for s in payload["series"] if s["data"]]  # 빈 시리즈 제거
+    payload["calendar"] = build_calendar(country)
     payload["updated"] = time.strftime("%Y-%m-%d %H:%M")
     with open(path, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False)

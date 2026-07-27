@@ -862,6 +862,23 @@
               </div>
 
               <div class="card mb-4">
+                <div class="card-body" id="calPanel">
+                  <div class="panel-head d-flex flex-wrap align-items-center gap-2 mb-3">
+                    <h5 class="mb-0 me-2">🗓️ 주요 발표 일정</h5>
+                    <div class="btn-group btn-group-sm ms-auto" role="group" aria-label="month">
+                      <button class="btn btn-outline-secondary" id="calPrev" type="button">‹</button>
+                      <button class="btn btn-outline-secondary" id="calToday" type="button">이번 달</button>
+                      <button class="btn btn-outline-secondary" id="calNext" type="button">›</button>
+                    </div>
+                  </div>
+                  <div class="cal-title fw-semibold mb-2" id="calTitle"></div>
+                  <div class="cal-grid" id="calGrid"></div>
+                  <div class="cal-legend" id="calLegend"></div>
+                  <div class="cal-note small" id="calNote"></div>
+                </div>
+              </div>
+
+              <div class="card mb-4">
                 <div class="card-body" id="fomcPanel">
                   <div class="panel-head d-flex flex-wrap align-items-center gap-2 mb-3">
                     <h5 id="fomcTitle" class="mb-0 me-2">🏛️ 통화정책위원회 시뮬레이션</h5>

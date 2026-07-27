@@ -348,6 +348,127 @@ function renderReport(d) {
   meta.textContent = `생성: ${d.created} · 데이터 기준: ${d.data_updated}`;
 }
 
+// ---------- 발표 일정 캘린더 ----------
+const CAL_KIND = {
+  meeting: {
+    label: "통화정책 회의",
+    cls: "k-meeting"
+  },
+  cpi: {
+    label: "CPI",
+    cls: "k-cpi"
+  },
+  pce: {
+    label: "PCE·개인소득",
+    cls: "k-pce"
+  },
+  jobs: {
+    label: "고용",
+    cls: "k-jobs"
+  },
+  gdp: {
+    label: "GDP",
+    cls: "k-gdp"
+  }
+};
+let calMonth = null; // 보고 있는 달의 1일 (Date)
+
+function ymd(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** 회의처럼 여러 날에 걸친 일정을 날짜별로 펼친다 */
+function eventsByDate(events) {
+  const map = {};
+  for (const e of events) {
+    for (let d = new Date(e.date + "T00:00:00"); ymd(d) <= (e.end || e.date); d.setDate(d.getDate() + 1)) {
+      (map[ymd(d)] = map[ymd(d)] || []).push(e);
+    }
+  }
+  return map;
+}
+
+/** reorient=true면 보고 있는 달에 일정이 없을 때 가장 가까운 일정의 달로 옮긴다.
+ *  (국가를 바꾸면 그 나라 일정이 없는 달일 수 있어 빈 달력이 되는 것을 막는다.
+ *   직접 달을 넘길 때는 reorient 없이 호출해 사용자의 선택을 유지한다) */
+function renderCalendar(reorient = false) {
+  const cal = (state.cache[state.country] || {}).calendar;
+  const grid = document.getElementById("calGrid");
+  if (!grid) return;
+  if (!cal || !cal.events.length) {
+    grid.innerHTML = "";
+    document.getElementById("calTitle").textContent = "";
+    document.getElementById("calNote").textContent = "표시할 일정이 없습니다.";
+    return;
+  }
+  const byDate = eventsByDate(cal.events);
+  if (!calMonth) {
+    const now = new Date();
+    calMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    reorient = true;
+  }
+  if (reorient) {
+    const mm = ymd(calMonth).slice(0, 7);
+    const has = cal.events.some(e => e.date.slice(0, 7) === mm || (e.end || e.date).slice(0, 7) === mm);
+    if (!has) {
+      const next = cal.events.find(e => (e.end || e.date) >= ymd(calMonth)) || cal.events[0];
+      calMonth = new Date(+next.date.slice(0, 4), +next.date.slice(5, 7) - 1, 1);
+    }
+  }
+  const y = calMonth.getFullYear();
+  const m = calMonth.getMonth();
+  document.getElementById("calTitle").textContent = `${y}년 ${m + 1}월`;
+  const first = new Date(y, m, 1);
+  const start = new Date(y, m, 1 - first.getDay()); // 그 주 일요일부터
+  const todayStr = ymd(new Date());
+  let html = "";
+  for (const w of ["일", "월", "화", "수", "목", "금", "토"]) {
+    html += `<div class="cal-head">${w}</div>`;
+  }
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    const key = ymd(d);
+    const evs = byDate[key] || [];
+    const cls = ["cal-day", d.getMonth() === m ? "" : "cal-out", key === todayStr ? "cal-today" : ""].filter(Boolean).join(" ");
+    const chips = evs.map(e => {
+      const k = CAL_KIND[e.kind] || {
+        cls: ""
+      };
+      return `<span class="cal-chip ${k.cls}" title="${e.label}">${e.label}</span>`;
+    }).join("");
+    html += `<div class="${cls}"><span class="cal-num">${d.getDate()}</span>${chips}</div>`;
+  }
+  grid.innerHTML = html;
+
+  // 범례는 이 국가에 실제로 있는 종류만
+  const kinds = [...new Set(cal.events.map(e => e.kind))];
+  document.getElementById("calLegend").innerHTML = kinds.map(k => CAL_KIND[k] ? `<span class="cal-chip ${CAL_KIND[k].cls}">${CAL_KIND[k].label}</span>` : "").join("");
+
+  // 회의 일정이 곧 바닥나면 갱신하라고 알린다 (조용히 빈 캘린더가 되는 것 방지)
+  const note = document.getElementById("calNote");
+  const until = cal.meetings_until;
+  const soon = new Date();
+  soon.setMonth(soon.getMonth() + 3);
+  note.textContent = until && until < ymd(soon) ? `⚠️ 등록된 통화정책 회의 일정이 ${until}까지입니다. meetings.json을 갱신해주세요.` : "";
+}
+function bindCalendar() {
+  const move = delta => {
+    if (!calMonth) return;
+    calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + delta, 1);
+    renderCalendar();
+  };
+  const prev = document.getElementById("calPrev");
+  if (!prev) return;
+  prev.addEventListener("click", () => move(-1));
+  document.getElementById("calNext").addEventListener("click", () => move(1));
+  document.getElementById("calToday").addEventListener("click", () => {
+    const n = new Date();
+    calMonth = new Date(n.getFullYear(), n.getMonth(), 1);
+    renderCalendar();
+  });
+}
+
 // ---------- 위원회 시뮬레이션 ----------
 function renderFomc(d) {
   const empty = document.getElementById("fomcContent");
@@ -699,6 +820,7 @@ async function switchCountry(country) {
   buildSidebar(payload);
   render();
   renderKpis();
+  renderCalendar(true); // 국가가 바뀌었으니 일정이 있는 달로 다시 맞춘다
   renderCompare();
   loadAIPanels();
 }
@@ -723,5 +845,6 @@ document.querySelectorAll(".period").forEach(btn => {
 });
 bindAI("report", renderReport, "reportBtn", "reportForceBtn", "분석 중… (30초~1분)");
 bindAI("fomc", renderFomc, "fomcBtn", "fomcForceBtn", "위원들이 토론 중… (1~2분)");
+bindCalendar();
 switchCountry("us");
 //# sourceMappingURL=macro.js.map
